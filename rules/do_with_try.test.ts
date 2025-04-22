@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert";
-import myPlugin from "./my-plugin.ts";
+import myPlugin from "../plugin.ts";
 
 Deno.test("my-plugin: _a to _b rule", () => {
   const diagnostics = Deno.lint.runPlugin(
