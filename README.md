@@ -1,4 +1,4 @@
-# @mizchi/deno-plugin-do-try
+# @mizchi/deno-lint-plugin-do-try
 
 A custom lint plugin for Deno that enforces error handling best practices through two complementary rules.
 
@@ -11,7 +11,7 @@ https://github.com/microsoft/vscode/blob/9b4e21695e2b905d293544dcb583fae2ef8ec7c
 ```json
 {
   "lint": {
-    "plugins": ["@mizchi/deno-plugin-try-do"]
+    "plugins": ["@mizchi/deno-lint-plugin-do-try"]
   }
 }
 ```
