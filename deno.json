@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run --watch main.ts"
+  },
+  "lint": {
+    "plugins": ["./my-plugin.ts"]
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1"
+  }
+}
