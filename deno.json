@@ -3,7 +3,7 @@
     "dev": "deno run --watch main.ts"
   },
   "lint": {
-    "plugins": ["./my-plugin.ts"]
+    "plugins": ["./plugins/do_with_try.ts"]
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1"
