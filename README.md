@@ -11,7 +11,7 @@ https://github.com/microsoft/vscode/blob/9b4e21695e2b905d293544dcb583fae2ef8ec7c
 ```json
 {
   "lint": {
-    "plugins": ["@mizchi/deno-lint-plugin-do-try"]
+    "plugins": ["jsr:@mizchi/deno-lint-plugin-do-try"]
   }
 }
 ```
