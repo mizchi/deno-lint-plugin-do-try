@@ -1,6 +1,7 @@
 {
   "name": "@mizchi/deno-plugin-do-try",
   "version": "0.0.1",
+  "license": "MIT",
   "exports": {
     ".": "./plugin.ts"
   },
