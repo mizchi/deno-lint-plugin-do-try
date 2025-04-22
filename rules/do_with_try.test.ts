@@ -1,22 +1,8 @@
 import { assertEquals } from "jsr:@std/assert";
 import myPlugin from "../plugin.ts";
 
-Deno.test("my-plugin: _a to _b rule", () => {
-  const diagnostics = Deno.lint.runPlugin(
-    myPlugin,
-    "test.ts",
-    "const _a = 'a';"
-  );
-
-  assertEquals(diagnostics.length, 1);
-  const d = diagnostics[0];
-  assertEquals(d.id, "my-plugin/my-rule");
-  assertEquals(d.message, "should be _b");
-  assertEquals(d.fix, [{ range: [6, 8], text: "_b" }]);
-});
-
 Deno.test(
-  "my-plugin: require-try-catch-for-do-functions - direct call without try-catch",
+  "try: require-try-catch-for-do-functions - direct call without try-catch",
   () => {
     const diagnostics = Deno.lint.runPlugin(
       myPlugin,
@@ -28,7 +14,7 @@ Deno.test(
 
     assertEquals(diagnostics.length, 1);
     const d = diagnostics[0];
-    assertEquals(d.id, "my-plugin/require-try-catch-for-do-functions");
+    assertEquals(d.id, "try/require-try-catch-for-do-functions");
     assertEquals(
       d.message,
       "Function 'doSomething' starts with 'do', so it must be wrapped in a try-catch block"
@@ -45,7 +31,7 @@ Deno.test(
 );
 
 Deno.test(
-  "my-plugin: require-try-catch-for-do-functions - method call without try-catch",
+  "try: require-try-catch-for-do-functions - method call without try-catch",
   () => {
     const diagnostics = Deno.lint.runPlugin(
       myPlugin,
@@ -57,7 +43,7 @@ Deno.test(
 
     assertEquals(diagnostics.length, 1);
     const d = diagnostics[0];
-    assertEquals(d.id, "my-plugin/require-try-catch-for-do-functions");
+    assertEquals(d.id, "try/require-try-catch-for-do-functions");
     assertEquals(
       d.message,
       "Function 'doMethod' starts with 'do', so it must be wrapped in a try-catch block"
@@ -66,7 +52,7 @@ Deno.test(
 );
 
 Deno.test(
-  "my-plugin: require-try-catch-for-do-functions - call with try-catch",
+  "try: require-try-catch-for-do-functions - call with try-catch",
   () => {
     const diagnostics = Deno.lint.runPlugin(
       myPlugin,
@@ -83,7 +69,7 @@ Deno.test(
     // try-catchで囲まれているので、エラーは報告されないはず
     assertEquals(
       diagnostics.filter(
-        (d) => d.id === "my-plugin/require-try-catch-for-do-functions"
+        (d) => d.id === "try/require-try-catch-for-do-functions"
       ).length,
       0
     );
@@ -91,7 +77,7 @@ Deno.test(
 );
 
 Deno.test(
-  "my-plugin: require-try-catch-for-do-functions - non-do function call",
+  "try: require-try-catch-for-do-functions - non-do function call",
   () => {
     const diagnostics = Deno.lint.runPlugin(
       myPlugin,
@@ -104,7 +90,7 @@ Deno.test(
     // do~から始まらない関数名なので、エラーは報告されないはず
     assertEquals(
       diagnostics.filter(
-        (d) => d.id === "my-plugin/require-try-catch-for-do-functions"
+        (d) => d.id === "try/require-try-catch-for-do-functions"
       ).length,
       0
     );

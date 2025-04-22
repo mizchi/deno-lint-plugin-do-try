@@ -7,10 +7,20 @@ export const doWithTryRule: Deno.lint.Rule = {
     function isInsideTryCatch(node: Deno.lint.Node): boolean {
       let current: NodeWithParent | undefined = node as NodeWithParent;
       while (current) {
+        // TryStatementを見つけたら、try-catch内にあると判断
         if (current.type === "TryStatement") {
           return true;
         }
-        console.log("[parent?]", current.parent);
+
+        // 関数定義の境界を超えないようにする
+        // 関数式、アロー関数式、関数宣言の場合は、それ以上親を遡らない
+        if (
+          current.type === "FunctionExpression" ||
+          current.type === "ArrowFunctionExpression" ||
+          current.type === "FunctionDeclaration"
+        ) {
+          return false;
+        }
         current = current.parent;
       }
       return false;

@@ -1,4 +1,5 @@
 On this page - [Example plugin](#example-plugin)
+
 - [Using selectors to match nodes](#using-selectors-to-match-nodes)
 - [Applying fixes](#applying-fixes)
 - [Running cleanup code](#running-cleanup-code)
@@ -39,7 +40,7 @@ deno.json
 ```json
 {
   "lint": {
-    "plugins": ["./my-plugin.ts"]
+    "plugins": ["./try.ts"]
   }
 }
 ```
@@ -55,12 +56,12 @@ Deno provides type declarations for the lint plugins API.
 
 All the typings are available under the `Deno.lint` namespace.
 
-my-plugin.ts
+try.ts
 
 ```ts
 const plugin: Deno.lint.Plugin = {
   // The name of your plugin. Will be shown in error output
-  name: "my-plugin",
+  name: "try",
   // Object with rules. The property name is the rule name and
   // will be shown in the error output as well.
   rules: {
@@ -100,11 +101,11 @@ write it in plain JavaScript. Sometimes this matching logic would be easier to
 express via a selector, similar to CSS selectors. By using a string as the
 property name in the returned visitor object, we can specify a custom selector.
 
-my-plugin.ts
+try.ts
 
 ```ts
 const plugin: Deno.lint.Plugin = {
-  name: "my-plugin",
+  name: "try",
   rules: {
     "my-rule": {
       create(context) {
@@ -129,24 +130,24 @@ Note, that we can always refine our match further in JavaScript if the matching
 logic is too complex to be expressed as a selector alone. The full list of the
 supported syntax for selectors is:
 
-| Syntax | Description |
-| --- | --- |
-| `Foo + Foo` | Next sibling selector |
-| `Foo > Bar` | Child combinator |
-| `Foo ~ Bar` | Subsequent sibling combinator |
-| `Foo Bar` | Descendant combinator |
-| `Foo[attr]` | Attribute existence |
-| `Foo[attr.length < 2]` | Attribute value comparison |
-| `Foo[attr=/(foo|bar)*/]` | Attribute value regex check |
-| `:first-child` | First child pseudo-class |
-| `:last-child` | Last child pseudo-class |
-| `:nth-child(2n + 1)` | Nth-child pseudo-class |
-| `:not( > Bar)` | Not pseudo-class |
-| `:is( > Bar)` | Is pseudo-class |
-| `:where( > Bar)` | Where pseudo-class (same as `:is()`) |
-| `:matches( > Bar)` | Matches pseudo-class (same as `:is()`) |
-| `:has( > Bar)` | Has pseudo-class |
-| `IfStatement.test` | Field selector `. < field >` |
+| Syntax                 | Description                            |
+| ---------------------- | -------------------------------------- | --------------------------- |
+| `Foo + Foo`            | Next sibling selector                  |
+| `Foo > Bar`            | Child combinator                       |
+| `Foo ~ Bar`            | Subsequent sibling combinator          |
+| `Foo Bar`              | Descendant combinator                  |
+| `Foo[attr]`            | Attribute existence                    |
+| `Foo[attr.length < 2]` | Attribute value comparison             |
+| `Foo[attr=/(foo        | bar)\*/]`                              | Attribute value regex check |
+| `:first-child`         | First child pseudo-class               |
+| `:last-child`          | Last child pseudo-class                |
+| `:nth-child(2n + 1)`   | Nth-child pseudo-class                 |
+| `:not( > Bar)`         | Not pseudo-class                       |
+| `:is( > Bar)`          | Is pseudo-class                        |
+| `:where( > Bar)`       | Where pseudo-class (same as `:is()`)   |
+| `:matches( > Bar)`     | Matches pseudo-class (same as `:is()`) |
+| `:has( > Bar)`         | Has pseudo-class                       |
+| `IfStatement.test`     | Field selector `. < field >`           |
 
 There is also the `:exit` pseudo that is only valid at the end of the whole
 selector. When it's present, Deno will call the function while going **up** the
@@ -214,11 +215,11 @@ If your plugin requires running cleanup code after a file has been linted, you
 can hook into the linter via the `destroy()` hook. It is called after a file has
 been linted and just before the plugin context is destroyed.
 
-my-plugin.ts
+try.ts
 
 ```ts
 const plugin: Deno.lint.Plugin = {
-  name: "my-plugin",
+  name: "try",
   rules: {
     "my-rule": {
       create(context) {
@@ -254,9 +255,9 @@ deno.json
 ```json
 {
   "lint": {
-    "plugins": ["./my-plugin.ts"],
+    "plugins": ["./try.ts"],
     "rules": {
-      "exclude": ["my-plugin/my-rule"]
+      "exclude": ["try/my-rule"]
     }
   }
 }
@@ -278,7 +279,7 @@ This will disable the lint rule from a lint plugin for this particular line.
 The syntax for the ignore comment is:
 
 ```ts
-// deno-lint-ignore <my-plugin>/<my-rule>
+// deno-lint-ignore <try>/<my-rule>
 ```
 
 ## Testing plugins [Jump to heading #](#testing-plugins)
@@ -289,22 +290,22 @@ particular input.
 
 Let's use the example plugin, defined above:
 
-my-plugin\_test.ts
+try_test.ts
 
 ```ts
 import { assertEquals } from "jsr:@std/assert";
-import myPlugin from "./my-plugin.ts";
+import myPlugin from "./try.ts";
 
-Deno.test("my-plugin", () => {
+Deno.test("try", () => {
   const diagnostics = Deno.lint.runPlugin(
     myPlugin,
     "main.ts", // Dummy filename, file doesn't need to exist.
-    "const _a = 'a';",
+    "const _a = 'a';"
   );
 
   assertEquals(diagnostics.length, 1);
   const d = diagnostics[0];
-  assertEquals(d.id, "my-plugin/my-rule");
+  assertEquals(d.id, "try/my-rule");
   assertEquals(d.message, "should be _b");
   assertEquals(d.fix, [{ range: [6, 8], text: "_b" }]);
 });
