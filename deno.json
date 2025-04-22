@@ -1,4 +1,8 @@
 {
+  "name": "@mizchi/deno-plugin-do-try",
+  "exports": {
+    ".": "./plugin.ts"
+  },
   "tasks": {
     "dev": "deno run --watch main.ts"
   },

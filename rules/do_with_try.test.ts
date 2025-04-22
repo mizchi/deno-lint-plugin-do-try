@@ -14,7 +14,7 @@ Deno.test(
 
     assertEquals(diagnostics.length, 1);
     const d = diagnostics[0];
-    assertEquals(d.id, "try/require-try-catch-for-do-functions");
+    assertEquals(d.id, "do-try/require-try-catch-for-do-functions");
     assertEquals(
       d.message,
       "Function 'doSomething' starts with 'do', so it must be wrapped in a try-catch block"
@@ -43,7 +43,7 @@ Deno.test(
 
     assertEquals(diagnostics.length, 1);
     const d = diagnostics[0];
-    assertEquals(d.id, "try/require-try-catch-for-do-functions");
+    assertEquals(d.id, "do-try/require-try-catch-for-do-functions");
     assertEquals(
       d.message,
       "Function 'doMethod' starts with 'do', so it must be wrapped in a try-catch block"
@@ -69,7 +69,7 @@ Deno.test(
     // try-catchで囲まれているので、エラーは報告されないはず
     assertEquals(
       diagnostics.filter(
-        (d) => d.id === "try/require-try-catch-for-do-functions"
+        (d) => d.id === "do-try/require-try-catch-for-do-functions"
       ).length,
       0
     );
@@ -90,7 +90,7 @@ Deno.test(
     // do~から始まらない関数名なので、エラーは報告されないはず
     assertEquals(
       diagnostics.filter(
-        (d) => d.id === "try/require-try-catch-for-do-functions"
+        (d) => d.id === "do-try/require-try-catch-for-do-functions"
       ).length,
       0
     );
