@@ -1,12 +1,16 @@
+// 親ノードへの参照を持つノード型を表現するための型
+type NodeWithParent = Deno.lint.Node & { parent?: NodeWithParent };
+
 export const doWithTryRule: Deno.lint.Rule = {
   create(context) {
     // try-catchブロック内にあるかどうかを確認する関数
-    function isInsideTryCatch(node: any): boolean {
-      let current = node;
+    function isInsideTryCatch(node: Deno.lint.Node): boolean {
+      let current: NodeWithParent | undefined = node as NodeWithParent;
       while (current) {
         if (current.type === "TryStatement") {
           return true;
         }
+        console.log("[parent?]", current.parent);
         current = current.parent;
       }
       return false;
@@ -45,10 +49,10 @@ export const doWithTryRule: Deno.lint.Rule = {
                   return fixer.replaceText(
                     node,
                     `try {
-      await ${argText}
-    } catch (error) {
-      console.error(error);
-    }`
+        await ${argText}
+      } catch (error) {
+        console.error(error);
+      }`
                   );
                 },
               });
@@ -60,7 +64,7 @@ export const doWithTryRule: Deno.lint.Rule = {
       // 通常の関数呼び出しを検出
       CallExpression(node) {
         // 親がawait式の場合はスキップ（AwaitExpressionで処理済み）
-        const nodeWithParent = node as any;
+        const nodeWithParent = node as NodeWithParent;
         if (
           nodeWithParent.parent &&
           nodeWithParent.parent.type === "AwaitExpression"

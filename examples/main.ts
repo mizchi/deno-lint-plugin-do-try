@@ -10,6 +10,16 @@ await doSomething();
 await obj.doSomething();
 
 try {
+  const run = async () => {
+    await doSomething();
+  };
+
+  await run();
+} catch (error) {
+  console.error("An error occurred:", error);
+}
+
+try {
   doSomething();
 } catch (error) {
   console.error("An error occurred:", error);
