@@ -1,5 +1,5 @@
 {
-  "name": "@mizchi/deno-plugin-do-try",
+  "name": "@mizchi/deno-lint-plugin-do-try",
   "version": "0.0.1",
   "license": "MIT",
   "exports": {
