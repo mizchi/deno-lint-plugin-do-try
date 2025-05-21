@@ -9,5 +9,9 @@ import { expect } from "@std/expect";
 function add(a: number, b: number) {
   return a + b;
 }
-Deno.test();
+Deno.test("add", async (t) => {
+  await t.step("1+2=3", () => {
+    expect(add(1, 2)).toBe(3);
+  });
+});
 ```
