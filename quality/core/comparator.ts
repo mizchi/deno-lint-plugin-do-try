@@ -2,6 +2,7 @@
  * コード品質計算モジュールの比較機能
  *
  * このファイルでは、2つのコードの複雑度を比較するための機能を提供します。
+ * ファサードパターンを適用し、内部実装の詳細を隠蔽して、必要最小限のAPIのみを公開します。
  */
 
 import {
@@ -11,6 +12,38 @@ import {
   DEFAULT_COMPLEXITY_WEIGHTS,
 } from "./types.ts";
 import { analyzeCodeComplexity, calculateComplexityScore } from "./metrics.ts";
+
+// 内部関数: 比較結果からレポートを生成する
+function generateComparisonTable(
+  comparison: ComplexityComparisonResult,
+  nameA: string,
+  nameB: string,
+): string {
+  let table = "| 指標 | " + nameA + " | " + nameB + " |\n";
+  table += "|------|" + "-".repeat(nameA.length) + "|" +
+    "-".repeat(nameB.length) + "|\n";
+
+  table += `| 変数の変更可能性 | ${
+    comparison.metricsA.variableMutabilityScore.toFixed(2)
+  } | ${comparison.metricsB.variableMutabilityScore.toFixed(2)} |\n`;
+  table += `| スコープの複雑さ | ${
+    comparison.metricsA.scopeComplexityScore.toFixed(2)
+  } | ${comparison.metricsB.scopeComplexityScore.toFixed(2)} |\n`;
+  table += `| 代入操作 | ${comparison.metricsA.assignmentScore.toFixed(2)} | ${
+    comparison.metricsB.assignmentScore.toFixed(2)
+  } |\n`;
+  table += `| 関数の複雑さ | ${
+    comparison.metricsA.functionComplexityScore.toFixed(2)
+  } | ${comparison.metricsB.functionComplexityScore.toFixed(2)} |\n`;
+  table += `| 条件分岐の複雑さ | ${
+    comparison.metricsA.conditionalComplexityScore.toFixed(2)
+  } | ${comparison.metricsB.conditionalComplexityScore.toFixed(2)} |\n`;
+  table += `| 例外処理の複雑さ | ${
+    comparison.metricsA.exceptionHandlingScore.toFixed(2)
+  } | ${comparison.metricsB.exceptionHandlingScore.toFixed(2)} |\n`;
+
+  return table;
+}
 
 /**
  * 2つのコードの複雑度を比較する
@@ -81,28 +114,14 @@ export function generateComparisonReport(
   }
 
   report += "\n### 詳細な比較\n\n";
-  report += "| 指標 | " + nameA + " | " + nameB + " |\n";
-  report += "|------|" + "-".repeat(nameA.length) + "|" +
-    "-".repeat(nameB.length) + "|\n";
-
-  report += `| 変数の変更可能性 | ${
-    comparison.metricsA.variableMutabilityScore.toFixed(2)
-  } | ${comparison.metricsB.variableMutabilityScore.toFixed(2)} |\n`;
-  report += `| スコープの複雑さ | ${
-    comparison.metricsA.scopeComplexityScore.toFixed(2)
-  } | ${comparison.metricsB.scopeComplexityScore.toFixed(2)} |\n`;
-  report += `| 代入操作 | ${comparison.metricsA.assignmentScore.toFixed(2)} | ${
-    comparison.metricsB.assignmentScore.toFixed(2)
-  } |\n`;
-  report += `| 関数の複雑さ | ${
-    comparison.metricsA.functionComplexityScore.toFixed(2)
-  } | ${comparison.metricsB.functionComplexityScore.toFixed(2)} |\n`;
-  report += `| 条件分岐の複雑さ | ${
-    comparison.metricsA.conditionalComplexityScore.toFixed(2)
-  } | ${comparison.metricsB.conditionalComplexityScore.toFixed(2)} |\n`;
-  report += `| 例外処理の複雑さ | ${
-    comparison.metricsA.exceptionHandlingScore.toFixed(2)
-  } | ${comparison.metricsB.exceptionHandlingScore.toFixed(2)} |\n`;
+  report += generateComparisonTable(comparison, nameA, nameB);
 
   return report;
 }
+
+// 公開するAPIは以下の2つのみ
+// - compareCodeComplexity: 2つのコードの複雑度を比較する
+// - generateComparisonReport: 2つのコードの複雑度比較レポートを生成する
+
+// 以下の関数は内部実装の詳細であり、外部からは直接アクセスできないようにします
+// - generateComparisonTable

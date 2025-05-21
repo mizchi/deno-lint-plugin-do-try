@@ -2,6 +2,7 @@
  * コード品質計算モジュールのメトリクス計算
  *
  * このファイルでは、コードの複雑度指標を計算するための機能を提供します。
+ * ファサードパターンを適用し、内部実装の詳細を隠蔽して、必要最小限のAPIのみを公開します。
  */
 
 // TypeScriptコンパイラを使用
@@ -18,11 +19,8 @@ import {
   visitNode,
 } from "./parser.ts";
 
-/**
- * コード複雑度の指標を初期化する
- * @returns 初期化された指標オブジェクト
- */
-export function initializeMetrics(): CodeComplexityMetrics {
+// 内部関数: コード複雑度の指標を初期化する
+function initializeMetrics(): CodeComplexityMetrics {
   return {
     totalScore: 1, // 基本スコアは1から開始
     variableMutabilityScore: 0,
@@ -35,15 +33,8 @@ export function initializeMetrics(): CodeComplexityMetrics {
   };
 }
 
-/**
- * 複雑度の高いホットスポットを追加する
- * @param metrics 複雑度指標
- * @param node ASTノード
- * @param sourceFile ソースファイル
- * @param score 複雑度スコア
- * @param reason 理由
- */
-export function addHotspot(
+// 内部関数: 複雑度の高いホットスポットを追加する
+function addHotspot(
   metrics: CodeComplexityMetrics,
   node: ts.Node,
   sourceFile: ts.SourceFile,
@@ -63,12 +54,8 @@ export function addHotspot(
   }
 }
 
-/**
- * 式の複雑さを計算する（子ノードの累計）
- * @param expression 式
- * @returns 複雑さスコア
- */
-export function calculateExpressionComplexity(
+// 内部関数: 式の複雑さを計算する（子ノードの累計）
+function calculateExpressionComplexity(
   expression: ts.Expression,
 ): number {
   let complexity = 1; // 基本スコア
@@ -139,12 +126,8 @@ export function calculateExpressionComplexity(
   return complexity;
 }
 
-/**
- * 条件式の複雑さを計算する（calculateExpressionComplexityのラッパー）
- * @param expression 条件式
- * @returns 複雑さスコア
- */
-export function calculateConditionalComplexity(
+// 内部関数: 条件式の複雑さを計算する
+function calculateConditionalComplexity(
   expression: ts.Expression,
 ): number {
   return calculateExpressionComplexity(expression);
@@ -198,3 +181,13 @@ export function calculateComplexityScore(
     metrics.exceptionHandlingScore * weights.exceptionHandlingWeight
   );
 }
+
+// 公開するAPIは以下の2つのみ
+// - analyzeCodeComplexity: コードを解析して複雑度指標を計算する
+// - calculateComplexityScore: 複雑度指標に基づいてスコアを計算する
+
+// 以下の関数は内部実装の詳細であり、外部からは直接アクセスできないようにします
+// - initializeMetrics
+// - addHotspot
+// - calculateExpressionComplexity
+// - calculateConditionalComplexity
