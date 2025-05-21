@@ -1,109 +1,84 @@
-# @mizchi/deno-lint-plugin-do-try
+# @mizchi/deno-lint-plugins
 
-A custom lint plugin for Deno that enforces error handling best practices through two complementary rules.
+- @mizchi/deno-lint-plugin/do-try
+  - throwable function should be named with `do` prefix
+  -
+- @mizchi/deno-lint-plugin/strict-module
 
 ## Inspire
-
-https://github.com/microsoft/vscode/blob/9b4e21695e2b905d293544dcb583fae2ef8ec7c0/src/vs/platform/log/browser/log.ts#L36
 
 ## How to use
 
 ```json
 {
   "lint": {
-    "plugins": ["jsr:@mizchi/deno-lint-plugin-do-try"]
+    "plugins": [
+      "jsr:@mizchi/deno-lint-plugin/do-try",
+      "jsr:@mizchi/deno-lint-plugin/strict-module"
+    ]
   }
 }
 ```
 
 ## Rules
 
-### do-try/require-try-catch-for-do-functions
+### Plugin: strict-module
 
-This rule enforces that all function calls with names starting with `do` must be wrapped in a try-catch block.
+```ts
+// ok
+import {} from "./xxx/mod.ts"; // allow ./mod.ts
+import type { Foo as _2 } from "./xxx/types.ts"; // allow ./types.ts
+import {} from "../../mod.ts"; // allow direct parent mod
+import {} from "../../internal.ts"; // allow direct parent internal
 
-#### ❌ Invalid Code
-
-```typescript
-function example() {
-  doSomething(); // Error: Function 'doSomething' starts with 'do', so it must be wrapped in a try-catch block
-  await doAsyncTask(); // Error: Function 'doAsyncTask' starts with 'do', so it must be wrapped in a try-catch block
-  obj.doMethod(); // Error: Function 'doMethod' starts with 'do', so it must be wrapped in a try-catch block
-}
+// error
+import {} from "./xxx/internal.ts"; // direct import
+import { Foo as _1 } from "./xxx/types.ts"; // no type import
+import {} from "../../submodule/internal.ts"; // direct parent sub mobule
 ```
 
-#### ✅ Valid Code
+### Plugin: do-try
 
-```typescript
-function example() {
-  try {
-    doSomething();
-    await doAsyncTask();
-    obj.doMethod();
-  } catch (error) {
-    console.error("An error occurred:", error);
+https://github.com/microsoft/vscode/blob/9b4e21695e2b905d293544dcb583fae2ef8ec7c0/src/vs/platform/log/browser/log.ts#L36
+
+Errors
+
+```ts
+// Error: function has throw statement should be named with do~
+function throwableFunction() {
+  if (Math.random() > 0.5) {
+    throw new Error("Random error");
   }
+  return "data";
 }
+
+// Error: do~ function should be called with try
+doSomething();
+await doSomething();
+await obj.doSomething();
 ```
 
-### do-try/throw-needs-do-prefix
+Allowed
 
-This rule enforces that all functions containing throw statements must have names starting with `do`.
-
-#### ❌ Invalid Code
-
-```typescript
-function getData() {
-  // Error: Function 'getData' contains throw statement, so it must start with 'do'
-  if (condition) {
-    throw new Error("Something went wrong");
+```ts
+function doThrowableFunction() {
+  if (Math.random() > 0.5) {
+    throw new Error("Random error");
   }
-  return data;
+  return "data";
+}
+async function doThrowableAsync(): Promise<string> {
+  if (Math.random() > 0.5) {
+    await Promise.reject(new Error("Random error"));
+  }
+  return "data";
 }
 
-const fetchData = () => {
-  // Error: Function 'fetchData' contains throw statement, so it must start with 'do'
-  if (condition) {
-    throw new Error("Something went wrong");
-  }
-  return data;
-};
-
-class Service {
-  getData() {
-    // Error: Function 'getData' contains throw statement, so it must start with 'do'
-    if (condition) {
-      throw new Error("Something went wrong");
-    }
-    return data;
-  }
-}
-```
-
-#### ✅ Valid Code
-
-```typescript
-function doGetData() {
-  if (condition) {
-    throw new Error("Something went wrong");
-  }
-  return data;
-}
-
-const doFetchData = () => {
-  if (condition) {
-    throw new Error("Something went wrong");
-  }
-  return data;
-};
-
-class Service {
-  doGetData() {
-    if (condition) {
-      throw new Error("Something went wrong");
-    }
-    return data;
-  }
+try {
+  doThrowableFunction();
+  await doThrowableAsync();
+} catch (error) {
+  console.error("An error occurred:", error);
 }
 ```
 

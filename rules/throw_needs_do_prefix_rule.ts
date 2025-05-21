@@ -1,6 +1,5 @@
 // 親ノードへの参照を持つノード型を表現するための型
-type NodeWithParent = Deno.lint.Node & { parent?: NodeWithParent };
-
+import { assertEquals } from "jsr:@std/assert";
 export const throwNeedsDoPrefix: Deno.lint.Rule = {
   create(context) {
     // 関数本体内にthrowステートメントが含まれているかをチェックする関数
@@ -9,7 +8,6 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
       if (body.type !== "BlockStatement") {
         return body.type === "ThrowStatement";
       }
-
       // BlockStatementの場合、bodyプロパティ内の各ステートメントを直接チェック
       if (body.type === "BlockStatement" && Array.isArray(body.body)) {
         // 直接的なThrowStatementをチェック
@@ -70,7 +68,6 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
         // 子ノードを再帰的にチェック
         for (const key in node) {
           const value = (node as any)[key];
-
           // 配列の場合、各要素をチェック
           if (Array.isArray(value)) {
             for (const item of value) {
@@ -80,8 +77,7 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
                 }
               }
             }
-          }
-          // オブジェクトの場合、再帰的にチェック
+          } // オブジェクトの場合、再帰的にチェック
           else if (value && typeof value === "object" && "type" in value) {
             if (checkNode(value)) {
               return true;
@@ -133,13 +129,13 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
     // 関数名の修正提案を生成する関数
     function generateFix(
       node: Deno.lint.Node,
-      funcName: string
+      funcName: string,
     ): (fixer: Deno.lint.Fixer) => Deno.lint.Fix {
       return (fixer) => {
         if (node.type === "FunctionDeclaration" && node.id) {
           return fixer.replaceText(
             node.id,
-            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`
+            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`,
           );
         } else if (
           node.type === "VariableDeclarator" &&
@@ -147,7 +143,7 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
         ) {
           return fixer.replaceText(
             node.id,
-            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`
+            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`,
           );
         } else if (
           node.type === "AssignmentExpression" &&
@@ -155,12 +151,12 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
         ) {
           return fixer.replaceText(
             node.left,
-            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`
+            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`,
           );
         } else if (node.type === "Property" && node.key.type === "Identifier") {
           return fixer.replaceText(
             node.key,
-            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`
+            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`,
           );
         } else if (
           node.type === "MethodDefinition" &&
@@ -168,7 +164,7 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
         ) {
           return fixer.replaceText(
             node.key,
-            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`
+            `do${funcName.charAt(0).toUpperCase()}${funcName.slice(1)}`,
           );
         }
 
@@ -180,7 +176,7 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
     // 関数定義をチェックする共通関数
     function checkFunctionDefinition(
       node: Deno.lint.Node,
-      body: Deno.lint.Node | null
+      body: Deno.lint.Node | null,
     ) {
       // bodyがnullの場合は処理をスキップ
       if (!body) return;
@@ -193,7 +189,8 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
         if (funcName && !funcName.startsWith("do")) {
           context.report({
             node,
-            message: `Function '${funcName}' contains throw statement, so it must start with 'do'`,
+            message:
+              `Function '${funcName}' contains throw statement, so it must start with 'do'`,
             fix: generateFix(node, funcName),
           });
         }
@@ -242,3 +239,132 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
     };
   },
 };
+
+const testPlugin: Deno.lint.Plugin = {
+  name: "test-plugin",
+  rules: {
+    "throw-needs-do-prefix": throwNeedsDoPrefix,
+  },
+};
+
+Deno.test(
+  "try: throw-needs-do-prefix - function declaration with throw without do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `function getData() {
+        if (Math.random() > 0.5) {
+          throw new Error("Random error");
+        }
+        return "data";
+      }`,
+    );
+
+    assertEquals(diagnostics.length, 1);
+    const d = diagnostics[0];
+    assertEquals(d.id, "test-plugin/throw-needs-do-prefix");
+    assertEquals(
+      d.message,
+      "Function 'getData' contains throw statement, so it must start with 'do'",
+    );
+    // 修正の内容をチェック
+    if (d.fix && d.fix.length > 0) {
+      assertEquals(d.fix.length, 1);
+      assertEquals(d.fix[0]?.text?.includes("doGetData"), true);
+    } else {
+      throw new Error("Expected fix to be defined and not empty");
+    }
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - function with do prefix and throw is valid",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `async function doGetData() {
+        if (Math.random() > 0.5) {
+          throw new Error("Random error");
+        }
+        return "data";
+      }`,
+    );
+
+    // doで始まっているので、エラーは報告されないはず
+    assertEquals(
+      diagnostics.filter((d) => d.id === "do-try/throw-needs-do-prefix").length,
+      0,
+    );
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - function without throw doesn't need do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `function getData() {
+        return "data";
+      }`,
+    );
+
+    // throwを含まないので、エラーは報告されないはず
+    assertEquals(
+      diagnostics.filter((d) => d.id === "do-try/throw-needs-do-prefix").length,
+      0,
+    );
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - arrow function with throw without do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `const getData = () => {
+        if (Math.random() > 0.5) {
+          throw new Error("Random error");
+        }
+        return "data";
+      }`,
+    );
+
+    assertEquals(diagnostics.length, 1);
+    const d = diagnostics[0];
+    assertEquals(d.id, "test-plugin/throw-needs-do-prefix");
+    assertEquals(
+      d.message,
+      "Function 'getData' contains throw statement, so it must start with 'do'",
+    );
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - method with throw without do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `class DataService {
+        getData() {
+          if (Math.random() > 0.5) {
+            throw new Error("Random error");
+          }
+          return "data";
+        }
+      }`,
+    );
+
+    assertEquals(diagnostics.length, 1);
+    const d = diagnostics[0];
+    assertEquals(d.id, "test-plugin/throw-needs-do-prefix");
+    assertEquals(
+      d.message,
+      "Function 'getData' contains throw statement, so it must start with 'do'",
+    );
+  },
+);

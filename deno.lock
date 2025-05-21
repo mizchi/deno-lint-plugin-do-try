@@ -1,13 +1,22 @@
 {
-  "version": "4",
+  "version": "5",
   "specifiers": {
     "jsr:@std/assert@*": "1.0.12",
+    "jsr:@std/assert@^1.0.12": "1.0.12",
+    "jsr:@std/expect@*": "1.0.14",
     "jsr:@std/internal@^1.0.6": "1.0.6"
   },
   "jsr": {
     "@std/assert@1.0.12": {
       "integrity": "08009f0926dda9cbd8bef3a35d3b6a4b964b0ab5c3e140a4e0351fbf34af5b9a",
       "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/expect@1.0.14": {
+      "integrity": "27b8200267c97206e38050aff18badc82e73b3072c1a6bdd59393ddea6f69183",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.12",
         "jsr:@std/internal"
       ]
     },

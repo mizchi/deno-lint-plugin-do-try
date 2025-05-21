@@ -3,13 +3,18 @@
   "version": "0.0.2",
   "license": "MIT",
   "exports": {
-    ".": "./plugin.ts"
+    "./do-try": "./plugins/do_try_plugin.ts",
+    "./strict-module": "./plugins/strict_module_plugin.ts",
+    "./rules": "./rules/mod.ts"
   },
   "tasks": {
     "dev": "deno run --watch main.ts"
   },
   "lint": {
-    "plugins": ["./plugin.ts"]
+    "plugins": [
+      "./plugins/do_try_plugin.ts",
+      "./plugins/strict_module_plugin.ts"
+    ]
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1"
