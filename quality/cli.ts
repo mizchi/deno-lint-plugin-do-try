@@ -2,6 +2,22 @@
  * コード品質計算モジュールのCLIインターフェース
  *
  * このファイルでは、コマンドライン引数を解析して、コード品質計算モジュールの機能を提供します。
+ *
+ * 使用例:
+ * ```
+ * $ complexity foo.ts
+ * 131
+ *
+ * $ complexity foo.ts --hotspot
+ * 131
+ * [hotspot]
+ * foo.ts:10
+ * foo.ts:15
+ *
+ * $ complexity module foo.ts bar.ts
+ * foo.ts file:61 module:124
+ * bar.ts file:63 module:0
+ * ```
  */
 
 import {
@@ -21,28 +37,25 @@ import {
  */
 function showHelp(): void {
   console.log(`
-コード品質計算モジュール CLI
+コード複雑度計算ツール
 
 使用方法:
-  deno run --allow-read quality/cli.ts <コマンド> [オプション]
+  complexity [オプション] <ファイルパス...>
+  complexity <コマンド> [オプション] <ファイルパス...>
 
 コマンド:
-  analyze <ファイルパス...>              複数ファイルの複雑度を分析します
-  compare <ファイルパスA> <ファイルパスB> 2つのファイルの複雑度を比較します
-  report <ファイルパス...>               複数ファイルの詳細レポートを生成します
-  module <ファイルパス...>               モジュールの複雑度を計算します
-  help                                 ヘルプメッセージを表示します
+  module    モジュールの複雑度を計算します
+  compare   2つのファイルの複雑度を比較します
+  help      ヘルプメッセージを表示します
 
 オプション:
-  --hotspot [表示数]                    ホットスポットを表示します（analyzeとreportコマンドで使用可能）
+  --hotspot  ホットスポット（複雑度が高い箇所）を表示します
 
 例:
-  deno run --allow-read quality/cli.ts analyze path/to/file1.ts path/to/file2.ts
-  deno run --allow-read quality/cli.ts analyze --hotspot 5 path/to/file1.ts path/to/file2.ts
-  deno run --allow-read quality/cli.ts compare path/to/fileA.ts path/to/fileB.ts
-  deno run --allow-read quality/cli.ts report path/to/file1.ts path/to/file2.ts
-  deno run --allow-read quality/cli.ts report --hotspot path/to/file1.ts path/to/file2.ts
-  deno run --allow-read quality/cli.ts module examples/module_test/d.ts
+  complexity foo.ts                    # 基本的な複雑度計算
+  complexity foo.ts --hotspot          # ホットスポットの表示
+  complexity module foo.ts bar.ts      # モジュール複雑度の計算
+  complexity compare foo.ts bar.ts     # 2つのファイルの複雑度を比較
   `);
 }
 
@@ -128,33 +141,57 @@ async function analyzeFile(filePath: string): Promise<void> {
  * 複数ファイルの複雑度を簡潔な形式で表示する
  * @param filePaths ファイルパスの配列
  */
-async function analyzeFilesSimple(filePaths: string[]): Promise<void> {
-  if (filePaths.length === 0) {
-    console.error("エラー: 分析するファイルが指定されていません");
-    return;
-  }
+/**
+ * 単一ファイルの複雑度を簡潔な形式で表示する
+ * @param filePath ファイルパス
+ * @param showHotspots ホットスポットを表示するかどうか
+ */
+async function analyzeFileSimple(
+  filePath: string,
+  showHotspots: boolean = false,
+): Promise<void> {
+  try {
+    const code = await readFile(filePath);
+    const metrics = analyzeCodeComplexity(code);
+    const score = calculateComplexityScore(metrics);
 
-  for (const filePath of filePaths) {
-    try {
-      const code = await readFile(filePath);
-      const metrics = analyzeCodeComplexity(code);
-      const score = calculateComplexityScore(metrics);
+    // CWDからの相対パスを取得
+    const relativePath = Deno.cwd() === "/"
+      ? filePath
+      : filePath.startsWith(Deno.cwd())
+      ? filePath.slice(Deno.cwd().length + 1)
+      : filePath;
 
-      // CWDからの相対パスを取得
-      const relativePath = Deno.cwd() === "/"
-        ? filePath
-        : filePath.startsWith(Deno.cwd())
-        ? filePath.slice(Deno.cwd().length + 1)
-        : filePath;
+    // 複雑度スコアのみを出力
+    console.log(score.toFixed(0));
 
-      // 簡潔な形式で出力: ファイルパス スコア
-      console.log(`${relativePath} ${score.toFixed(0)}`);
-    } catch (error) {
-      console.error(
-        `エラー: ファイル '${filePath}' の分析中にエラーが発生しました`,
+    // ホットスポットを表示する場合
+    if (showHotspots && metrics.hotspots.length > 0) {
+      console.log("[hotspot]");
+
+      // 行番号でソート
+      const sortedHotspots = [...metrics.hotspots].sort((a, b) =>
+        a.line - b.line
       );
-      console.error(error);
+
+      // 上位5件のホットスポットを表示
+      const uniqueLines = new Set<number>();
+      for (const hotspot of sortedHotspots) {
+        if (!uniqueLines.has(hotspot.line)) {
+          uniqueLines.add(hotspot.line);
+          console.log(`${relativePath}:${hotspot.line}`);
+
+          // 5件表示したら終了
+          if (uniqueLines.size >= 5) break;
+        }
+      }
     }
+  } catch (error) {
+    console.error(
+      `エラー: ファイル '${filePath}' の分析中にエラーが発生しました`,
+    );
+    console.error(error);
+    Deno.exit(1);
   }
 }
 
@@ -334,89 +371,21 @@ async function generateReports(filePaths: string[]): Promise<void> {
  * @param filePath ファイルパス
  * @param limit 表示するホットスポットの最大数（省略時は5件）
  */
-async function detectHotspots(
-  filePath: string,
-  limit: number = 5,
-): Promise<void> {
-  try {
-    const code = await readFile(filePath);
-    const metrics = analyzeCodeComplexity(code);
-
-    // CWDからの相対パスを取得
-    const relativePath = Deno.cwd() === "/"
-      ? filePath
-      : filePath.startsWith(Deno.cwd())
-      ? filePath.slice(Deno.cwd().length + 1)
-      : filePath;
-
-    console.log(`\n=== ${relativePath} のホットスポット ===\n`);
-
-    if (metrics.hotspots.length === 0) {
-      console.log("ホットスポットはありません");
-      return;
-    }
-
-    // 上位N件のホットスポットを取得（重複を考慮して多めに取得）
-    const topHotspots = metrics.hotspots.slice(0, limit * 2);
-
-    // 行番号の重複を除去
-    const uniqueLines = new Set<number>();
-    const uniqueHotspots: typeof topHotspots = [];
-
-    for (const hotspot of topHotspots) {
-      if (!uniqueLines.has(hotspot.line)) {
-        uniqueLines.add(hotspot.line);
-        uniqueHotspots.push(hotspot);
-
-        // 指定された上限に達したら終了
-        if (uniqueHotspots.length >= limit) {
-          break;
-        }
-      }
-    }
-
-    // 行番号でソート
-    uniqueHotspots.sort((a, b) => a.line - b.line);
-
-    // VSCodeでコードジャンプできる形式で表示
-    uniqueHotspots.forEach((hotspot) => {
-      console.log(`${relativePath}:${hotspot.line}`);
-    });
-  } catch (error) {
-    console.error(
-      `エラー: ファイル '${filePath}' のホットスポット検出中にエラーが発生しました`,
-    );
-    console.error(error);
-  }
-}
+// detectHotspots関数は不要になったため削除
 
 /**
  * 複数ファイルのホットスポットを検出して表示する
  * @param filePaths ファイルパスの配列
  * @param limit 表示するホットスポットの最大数（省略時は5件）
  */
-async function detectHotspotsInFiles(
-  filePaths: string[],
-  limit: number = 5,
-): Promise<void> {
-  if (filePaths.length === 0) {
-    console.error(
-      "エラー: ホットスポットを検出するファイルが指定されていません",
-    );
-    return;
-  }
-
-  console.log(
-    `${filePaths.length}個のファイルのホットスポットを検出します...\n`,
-  );
-
-  for (const filePath of filePaths) {
-    await detectHotspots(filePath, limit);
-  }
-}
+// detectHotspotsInFiles関数は不要になったため削除
 
 /**
  * モジュールの複雑度を計算する
+ * @param filePaths ファイルパスの配列
+ */
+/**
+ * モジュールの複雑度を計算して簡潔な形式で表示する
  * @param filePaths ファイルパスの配列
  */
 async function analyzeModuleComplexity(filePaths: string[]): Promise<void> {
@@ -434,15 +403,31 @@ async function analyzeModuleComplexity(filePaths: string[]): Promise<void> {
     } catch (error) {
       console.error(`エラー: ファイル '${filePath}' の読み込みに失敗しました`);
       console.error(error);
+      Deno.exit(1);
     }
   }
 
   // モジュールの複雑度を計算
   const results = calculateModulesComplexity(filePaths, fileContents);
 
-  // レポートを生成して出力
-  const report = generateModuleComplexityReport(results);
-  console.log(report);
+  // 各ファイルの複雑度を簡潔な形式で出力
+  for (const result of results) {
+    // CWDからの相対パスを取得
+    const relativePath = Deno.cwd() === "/"
+      ? result.path
+      : result.path.startsWith(Deno.cwd())
+      ? result.path.slice(Deno.cwd().length + 1)
+      : result.path;
+
+    const fileScore = result.fileComplexity;
+    const moduleScore = result.moduleComplexity;
+
+    console.log(
+      `${relativePath} file:${fileScore.toFixed(0)} module:${
+        moduleScore.toFixed(0)
+      }`,
+    );
+  }
 }
 
 /**
@@ -450,128 +435,102 @@ async function analyzeModuleComplexity(filePaths: string[]): Promise<void> {
  * @param args コマンドライン引数
  * @returns 解析結果
  */
+/**
+ * コマンドライン引数を解析する
+ * @param args コマンドライン引数
+ * @returns 解析結果
+ */
 function parseArgs(args: string[]): {
-  command: string;
+  command: string | null;
   filePaths: string[];
   hotspot: boolean;
-  hotspotLimit?: number;
 } {
-  const command = args[0];
+  let command: string | null = null;
   let filePaths: string[] = [];
   let hotspot = false;
-  let hotspotLimit: number | undefined = undefined;
 
-  // --hotspotフラグを探す
-  const hotspotIndex = args.findIndex((arg) => arg === "--hotspot");
+  // 引数を順番に処理
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
 
-  if (hotspotIndex !== -1) {
-    hotspot = true;
-
-    // --hotspotの次の引数が数値の場合は表示数として扱う
-    if (
-      hotspotIndex + 1 < args.length &&
-      !args[hotspotIndex + 1].startsWith("--") &&
-      !isNaN(Number(args[hotspotIndex + 1]))
-    ) {
-      hotspotLimit = parseInt(args[hotspotIndex + 1]);
-
-      // コマンド名、--hotspotフラグ、表示数を除いた残りの引数がファイルパス
-      filePaths = [
-        ...args.slice(1, hotspotIndex),
-        ...args.slice(hotspotIndex + 2),
-      ];
-    } else {
-      // コマンド名と--hotspotフラグを除いた残りの引数がファイルパス
-      filePaths = [
-        ...args.slice(1, hotspotIndex),
-        ...args.slice(hotspotIndex + 1),
-      ];
+    // オプションの処理
+    if (arg.startsWith("--")) {
+      if (arg === "--hotspot") {
+        hotspot = true;
+      }
+      continue;
     }
-  } else {
-    // コマンド名を除いた残りの引数がファイルパス
-    filePaths = args.slice(1);
+
+    // コマンドの処理（最初の非オプション引数）
+    if (command === null && ["module", "compare", "help"].includes(arg)) {
+      command = arg;
+      continue;
+    }
+
+    // ファイルパスの処理
+    filePaths.push(arg);
   }
 
   return {
     command,
     filePaths,
     hotspot,
-    hotspotLimit,
   };
 }
 
 /**
  * メイン関数
  */
+/**
+ * メイン関数
+ */
 async function main(): Promise<void> {
   const args = Deno.args;
 
-  if (args.length === 0) {
+  if (args.length === 0 || args.includes("help") || args.includes("--help")) {
     showHelp();
     return;
   }
 
-  const { command, filePaths, hotspot, hotspotLimit } = parseArgs(args);
+  const { command, filePaths, hotspot } = parseArgs(args);
 
-  switch (command) {
-    case "analyze":
-      if (filePaths.length === 0) {
-        console.error("エラー: 少なくとも1つのファイルパスを指定してください");
-        showHelp();
-        Deno.exit(1);
-      }
+  if (filePaths.length === 0) {
+    console.error("エラー: 少なくとも1つのファイルパスを指定してください");
+    showHelp();
+    Deno.exit(1);
+  }
 
-      if (hotspot) {
-        // ホットスポットを表示する場合
-        await detectHotspotsInFiles(filePaths, hotspotLimit);
-      } else {
-        // 通常の分析を行う場合
-        await analyzeFilesSimple(filePaths);
-      }
-      break;
-
-    case "compare":
-      if (filePaths.length < 2) {
-        console.error("エラー: 2つのファイルパスを指定してください");
-        showHelp();
-        Deno.exit(1);
-      }
-      await compareFiles(filePaths[0], filePaths[1]);
-      break;
-
-    case "report":
-      if (filePaths.length === 0) {
-        console.error("エラー: 少なくとも1つのファイルパスを指定してください");
-        showHelp();
-        Deno.exit(1);
-      }
-
-      if (hotspot) {
-        // ホットスポットを表示する場合
-        await detectHotspotsInFiles(filePaths, hotspotLimit);
-      } else {
-        // 通常のレポートを生成する場合
-        await generateReports(filePaths);
-      }
-      break;
-
-    case "help":
-      showHelp();
-      break;
-
-    case "module":
-      if (filePaths.length === 0) {
-        console.error("エラー: 少なくとも1つのファイルパスを指定してください");
-        showHelp();
-        Deno.exit(1);
-      }
-      await analyzeModuleComplexity(filePaths);
-      break;
-
-    default:
-      console.error(`エラー: 不明なコマンド '${command}'`);
+  // コマンドに基づいて処理を分岐
+  if (command === "module") {
+    // モジュール複雑度の計算
+    await analyzeModuleComplexity(filePaths);
+  } else if (command === "compare") {
+    // 2つのファイルの複雑度を比較
+    if (filePaths.length < 2) {
+      console.error("エラー: 2つのファイルパスを指定してください");
       showHelp();
       Deno.exit(1);
+    }
+    await compareFiles(filePaths[0], filePaths[1]);
+  } else {
+    // 基本的な複雑度計算（デフォルト）
+    // 単一ファイルの場合は簡潔な出力
+    if (filePaths.length === 1) {
+      await analyzeFileSimple(filePaths[0], hotspot);
+    } else {
+      // 複数ファイルの場合は各ファイルを処理
+      for (const filePath of filePaths) {
+        const relativePath = Deno.cwd() === "/"
+          ? filePath
+          : filePath.startsWith(Deno.cwd())
+          ? filePath.slice(Deno.cwd().length + 1)
+          : filePath;
+
+        console.log(`${relativePath}:`);
+        await analyzeFileSimple(filePath, hotspot);
+        console.log(); // 空行を挿入
+      }
+    }
   }
 }
 

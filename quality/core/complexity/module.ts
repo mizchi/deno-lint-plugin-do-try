@@ -9,9 +9,8 @@
 // TypeScriptコンパイラを使用
 import ts from "npm:typescript";
 import {
-  ComplexityContext,
-  ComplexityOptions,
-  ComplexityResult,
+  type ComplexityOptions,
+  type ComplexityResult,
   DEFAULT_COMPLEXITY_OPTIONS,
 } from "./common.ts";
 import { calculateFileComplexity } from "./file.ts";
@@ -571,6 +570,11 @@ export function generateModuleComplexityReport(
   const sortedResults = [...results].sort(
     (a, b) => b.moduleComplexity - a.moduleComplexity,
   );
+
+  const maxModuleComplexity = Math.max(
+    ...results.map((result) => result.moduleComplexity),
+  );
+  console.log("maxModuleComplexity:", maxModuleComplexity);
 
   // 各モジュールのレポートを生成（単純化されたフォーマット）
   sortedResults.forEach((result) => {
