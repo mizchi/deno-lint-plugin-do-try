@@ -1,5 +1,5 @@
 {
-  "name": "@mizchi/deno-lint-plugin-do-try",
+  "name": "@mizchi/linter",
   "version": "0.0.2",
   "license": "MIT",
   "exports": {
@@ -7,10 +7,15 @@
     "./strict-module": "./plugins/strict_module_plugin.ts",
     "./rules": "./rules/mod.ts"
   },
-  "tasks": {
-    "dev": "deno run --watch main.ts"
+  "test": {
+    "include": ["./rules/**/*.ts"],
+    "files": ["./quality/test/**/*.test.ts"]
   },
   "lint": {
+    "exclude": ["./examples", "./quality/test/fixtures/**/*.ts"],
+    "rules": {
+      "exclude": ["no-explicit-any", "require-await"]
+    },
     "plugins": [
       "./plugins/do_try_plugin.ts",
       "./plugins/strict_module_plugin.ts"

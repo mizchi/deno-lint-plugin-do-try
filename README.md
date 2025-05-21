@@ -1,9 +1,10 @@
-# @mizchi/deno-lint-plugins
+# @mizchi/linter
 
-- @mizchi/deno-lint-plugin/do-try
+Deno plugin
+
+- @mizchi/linter/do-try
   - throwable function should be named with `do` prefix
-  -
-- @mizchi/deno-lint-plugin/strict-module
+- @mizchi/linter/strict-module
 
 ## Inspire
 
@@ -12,10 +13,7 @@
 ```json
 {
   "lint": {
-    "plugins": [
-      "jsr:@mizchi/deno-lint-plugin/do-try",
-      "jsr:@mizchi/deno-lint-plugin/strict-module"
-    ]
+    "plugins": ["jsr:@mizchi/linter/do-try", "jsr:@mizchi/linter/strict-module"]
   }
 }
 ```

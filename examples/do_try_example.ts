@@ -104,7 +104,8 @@
   async function _xxx(): Promise<void> {
     try {
       //   throw new Error("Random error");
-    } catch (_error) {
+    } catch (error) {
+      console.error("An error occurred:", error);
       // handle error
     }
   }
