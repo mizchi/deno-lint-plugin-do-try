@@ -1,7 +1,162 @@
 // 親ノードへの参照を持つノード型を表現するための型
 import { assertEquals } from "jsr:@std/assert";
+
+// 親ノードを持つノードかどうかをチェックする関数
+function hasNodeParent(
+  node: Deno.lint.Node,
+): node is Deno.lint.Node & { parent: Deno.lint.Node } {
+  return "parent" in node;
+}
+
+// 関数がdoプレフィックスで始まる関数の中で定義されているかどうかをチェックする関数
+function isInsideDoFunction(node: Deno.lint.Node): boolean {
+  let current: Deno.lint.Node | undefined = node;
+  while (current) {
+    if (!hasNodeParent(current)) {
+      return false;
+    }
+
+    // 関数定義を見つけたら、その関数名をチェック
+    if (
+      current.type === "FunctionDeclaration" &&
+      current.id &&
+      current.id.name.startsWith("do")
+    ) {
+      return true;
+    }
+
+    // 変数宣言で関数が定義されている場合
+    if (
+      current.type === "VariableDeclarator" &&
+      current.id.type === "Identifier" &&
+      current.id.name.startsWith("do") &&
+      (current.init?.type === "FunctionExpression" ||
+        current.init?.type === "ArrowFunctionExpression")
+    ) {
+      return true;
+    }
+
+    // 代入式で関数が定義されている場合
+    if (
+      current.type === "AssignmentExpression" &&
+      current.left.type === "Identifier" &&
+      current.left.name.startsWith("do") &&
+      (current.right.type === "FunctionExpression" ||
+        current.right.type === "ArrowFunctionExpression")
+    ) {
+      return true;
+    }
+
+    // オブジェクトのプロパティとして関数が定義されている場合
+    if (
+      current.type === "Property" &&
+      current.key.type === "Identifier" &&
+      current.key.name.startsWith("do") &&
+      (current.value.type === "FunctionExpression" ||
+        current.value.type === "ArrowFunctionExpression")
+    ) {
+      return true;
+    }
+
+    // クラスのメソッド定義
+    if (
+      current.type === "MethodDefinition" &&
+      current.key.type === "Identifier" &&
+      current.key.name.startsWith("do")
+    ) {
+      return true;
+    }
+
+    // 関数定義の境界を超えない（別の関数に入ったら探索を終了）
+    if (
+      current.type === "FunctionExpression" ||
+      current.type === "ArrowFunctionExpression" ||
+      current.type === "FunctionDeclaration"
+    ) {
+      return false;
+    }
+
+    current = current.parent;
+  }
+  return false;
+}
 export const throwNeedsDoPrefix: Deno.lint.Rule = {
   create(context) {
+    // doプレフィックスで始まる関数内でawait式を使用しているかをチェックする関数
+    function isAwaitDoFunctionCall(node: Deno.lint.Node): boolean {
+      // BlockStatementの場合、各ステートメントを直接チェック
+      if (node.type === "BlockStatement" && Array.isArray(node.body)) {
+        for (const stmt of node.body) {
+          // ExpressionStatementの場合、式をチェック
+          if (
+            stmt.type === "ExpressionStatement" &&
+            stmt.expression.type === "AwaitExpression" &&
+            stmt.expression.argument.type === "CallExpression"
+          ) {
+            const callExpr = stmt.expression.argument;
+            // 関数名を取得
+            if (callExpr.callee.type === "Identifier") {
+              if (callExpr.callee.name.startsWith("do")) {
+                return true;
+              }
+            } else if (
+              callExpr.callee.type === "MemberExpression" &&
+              callExpr.callee.property.type === "Identifier"
+            ) {
+              if (callExpr.callee.property.name.startsWith("do")) {
+                return true;
+              }
+            }
+          }
+
+          // 他のステートメント内も再帰的にチェック
+          if (isAwaitDoFunctionCall(stmt)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // AwaitExpressionノードを探す
+      if (
+        node.type === "AwaitExpression" &&
+        node.argument.type === "CallExpression"
+      ) {
+        const callExpr = node.argument;
+        // 関数名を取得
+        if (callExpr.callee.type === "Identifier") {
+          return callExpr.callee.name.startsWith("do");
+        } else if (
+          callExpr.callee.type === "MemberExpression" &&
+          callExpr.callee.property.type === "Identifier"
+        ) {
+          return callExpr.callee.property.name.startsWith("do");
+        }
+      }
+
+      // 子ノードを再帰的にチェック
+      for (const key in node) {
+        const value = (node as any)[key];
+        // 配列の場合、各要素をチェック
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item && typeof item === "object" && "type" in item) {
+              if (isAwaitDoFunctionCall(item)) {
+                return true;
+              }
+            }
+          }
+        } // オブジェクトの場合、再帰的にチェック
+        else if (value && typeof value === "object" && "type" in value) {
+          if (isAwaitDoFunctionCall(value)) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
     // 関数本体内にthrowステートメントが含まれているかをチェックする関数
     function hasThrowStatement(body: Deno.lint.Node): boolean {
       // 関数本体が単一の式の場合（アロー関数など）
@@ -187,6 +342,16 @@ export const throwNeedsDoPrefix: Deno.lint.Rule = {
 
         // 関数名が取得できて、かつdoで始まっていない場合
         if (funcName && !funcName.startsWith("do")) {
+          // doプレフィックスで始まる関数の中で定義されている場合は、doプレフィックスを強制しない
+          if (isInsideDoFunction(node)) {
+            return;
+          }
+
+          // 関数本体内でawait doXxx()を使用している場合も、doプレフィックスを強制しない
+          if (isAwaitDoFunctionCall(body)) {
+            return;
+          }
+
           context.report({
             node,
             message:
@@ -295,6 +460,105 @@ Deno.test(
     // doで始まっているので、エラーは報告されないはず
     assertEquals(
       diagnostics.filter((d) => d.id === "do-try/throw-needs-do-prefix").length,
+      0,
+    );
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - function inside do-prefixed function doesn't need do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `async function doMain() {
+        // この中で定義される関数は、throwステートメントがあっても
+        // doプレフィックスを強制されない
+        await doA();
+        
+        // 例：この関数はthrowを含むが、doMainの中で定義されているので
+        // doプレフィックスが不要
+        const processData = () => {
+          if (Math.random() > 0.5) {
+            throw new Error("Error in processing");
+          }
+          return "data";
+        };
+        
+        const result = processData();
+        await doB();
+      }`,
+    );
+
+    // doMainの中で定義されたprocessData関数はthrowを含むが、
+    // doプレフィックスを強制されないので、エラーは報告されないはず
+    assertEquals(
+      diagnostics.filter((d) => d.id === "test-plugin/throw-needs-do-prefix")
+        .length,
+      0,
+    );
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - function outside do-prefixed function needs do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `// この関数はdoプレフィックスで始まる関数の外で定義されているので
+      // throwステートメントがある場合はdoプレフィックスが必要
+      const processData = () => {
+        if (Math.random() > 0.5) {
+          throw new Error("Error in processing");
+        }
+        return "data";
+      };
+      
+      async function doMain() {
+        await doA();
+        const result = processData();
+        await doB();
+      }`,
+    );
+
+    // processData関数はdoMainの外で定義されていて、throwを含むので
+    // doプレフィックスを強制される
+    assertEquals(diagnostics.length, 1);
+    const d = diagnostics[0];
+    assertEquals(d.id, "test-plugin/throw-needs-do-prefix");
+    assertEquals(
+      d.message,
+      "Function 'processData' contains throw statement, so it must start with 'do'",
+    );
+  },
+);
+
+Deno.test(
+  "try: throw-needs-do-prefix - function with await doXxx() doesn't need do prefix",
+  () => {
+    const diagnostics = Deno.lint.runPlugin(
+      testPlugin,
+      "test.ts",
+      `async function processData() {
+        // この関数はthrowを含むが、await doXxx()を使用しているので
+        // doプレフィックスが不要
+        if (Math.random() > 0.5) {
+          throw new Error("Error in processing");
+        }
+        await doSomethingAsync();
+        return "data";
+      }
+      
+      async function doMain() {
+        const result = await processData();
+      }`,
+    );
+
+    // processData関数はthrowを含むが、await doXxx()を使用しているので
+    // doプレフィックスを強制されないはず
+    assertEquals(
+      diagnostics.length,
       0,
     );
   },

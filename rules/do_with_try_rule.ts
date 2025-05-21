@@ -1,6 +1,86 @@
 import { expect } from "jsr:@std/expect/expect";
 import { getFunctionName, isInsideTryCatch } from "../utils/mod.ts";
 
+// 親ノードを持つノードかどうかをチェックする関数
+function hasNodeParent(
+  node: Deno.lint.Node,
+): node is Deno.lint.Node & { parent: Deno.lint.Node } {
+  return "parent" in node;
+}
+
+// 関数がdoプレフィックスで始まる関数の中で定義されているかどうかをチェックする関数
+function isInsideDoFunction(node: Deno.lint.Node): boolean {
+  let current: Deno.lint.Node | undefined = node;
+  while (current) {
+    if (!hasNodeParent(current)) {
+      return false;
+    }
+
+    // 関数定義を見つけたら、その関数名をチェック
+    if (
+      current.type === "FunctionDeclaration" &&
+      current.id &&
+      current.id.name.startsWith("do")
+    ) {
+      return true;
+    }
+
+    // 変数宣言で関数が定義されている場合
+    if (
+      current.type === "VariableDeclarator" &&
+      current.id.type === "Identifier" &&
+      current.id.name.startsWith("do") &&
+      (current.init?.type === "FunctionExpression" ||
+        current.init?.type === "ArrowFunctionExpression")
+    ) {
+      return true;
+    }
+
+    // 代入式で関数が定義されている場合
+    if (
+      current.type === "AssignmentExpression" &&
+      current.left.type === "Identifier" &&
+      current.left.name.startsWith("do") &&
+      (current.right.type === "FunctionExpression" ||
+        current.right.type === "ArrowFunctionExpression")
+    ) {
+      return true;
+    }
+
+    // オブジェクトのプロパティとして関数が定義されている場合
+    if (
+      current.type === "Property" &&
+      current.key.type === "Identifier" &&
+      current.key.name.startsWith("do") &&
+      (current.value.type === "FunctionExpression" ||
+        current.value.type === "ArrowFunctionExpression")
+    ) {
+      return true;
+    }
+
+    // クラスのメソッド定義
+    if (
+      current.type === "MethodDefinition" &&
+      current.key.type === "Identifier" &&
+      current.key.name.startsWith("do")
+    ) {
+      return true;
+    }
+
+    // 関数定義の境界を超えない（別の関数に入ったら探索を終了）
+    if (
+      current.type === "FunctionExpression" ||
+      current.type === "ArrowFunctionExpression" ||
+      current.type === "FunctionDeclaration"
+    ) {
+      return false;
+    }
+
+    current = current.parent;
+  }
+  return false;
+}
+
 // doで始まる関数のチェックと報告を行う共通関数
 function checkAndReportDoFunction(
   context: Deno.lint.RuleContext,
@@ -10,6 +90,11 @@ function checkAndReportDoFunction(
 ) {
   // 関数名が「do」で始まるかどうかを確認
   if (funcName.startsWith("do")) {
+    // doプレフィックスで始まる関数の中で定義されている場合は、警告を出さない
+    if (isInsideDoFunction(node)) {
+      return;
+    }
+
     // try-catchブロック内にあるかどうかを確認
     if (!isInsideTryCatch(node)) {
       context.report({

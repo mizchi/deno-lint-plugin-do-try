@@ -3,6 +3,7 @@
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "biomejs.biome",
   "oxc.enable": false,
+  "eslint.enable": false,
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
   }
