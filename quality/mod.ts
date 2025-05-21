@@ -13,6 +13,9 @@ export type {
   ComplexityOptions,
   ComplexityResult,
   ComplexityWeights,
+  // モジュール複雑度計算の型定義
+  ModuleComplexityResult,
+  ModuleDependency,
 } from "./core/mod.ts";
 
 // 定数をエクスポート
@@ -31,6 +34,9 @@ export {
   calculateCodeComplexity,
   calculateComplexityScore,
   calculateFileComplexity,
+  calculateModuleComplexity,
+  calculateModuleFileComplexity,
+  calculateModulesComplexity,
   calculateNewExpressionComplexity,
   calculateStatementComplexity,
   compareCodeComplexity,
@@ -42,6 +48,8 @@ export {
   // 追加の関数
   generateHotspotReport,
   generateMetricsReport,
+  generateModuleComplexityReport,
   // 新しく追加した関数
   summarizeComplexityResult,
+  topologicalSort,
 } from "./core/mod.ts";

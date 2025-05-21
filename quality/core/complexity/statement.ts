@@ -141,6 +141,9 @@ function calculateStatementNodeComplexity(
   const children: ComplexityResult[] = [];
   const metadata: Record<string, unknown> = {};
 
+  // 再帰探索のための深度を増やす
+  context.currentDepth++;
+
   // 式文
   if (ts.isExpressionStatement(statement)) {
     if (statement.expression) {
@@ -153,6 +156,10 @@ function calculateStatementNodeComplexity(
     }
   } // 変数宣言
   else if (ts.isVariableStatement(statement)) {
+    // 宣言の数をカウント
+    const declarationCount = statement.declarationList.declarations.length;
+
+    // 各宣言の初期化式の複雑度を計算
     for (const declaration of statement.declarationList.declarations) {
       if (declaration.initializer) {
         const initComplexity = calculateExpressionComplexity(
@@ -166,8 +173,12 @@ function calculateStatementNodeComplexity(
 
     // let宣言は複雑度が高い（変更可能性）
     if ((statement.declarationList.flags & ts.NodeFlags.Let) !== 0) {
-      score += 0.5;
+      // let宣言の数に応じて複雑度を乗算
+      const letMultiplier = 1 + (declarationCount * 0.5);
+      score *= letMultiplier;
       metadata.mutable = true;
+      metadata.letDeclarationCount = declarationCount;
+      metadata.letMultiplier = letMultiplier;
     }
   } // if文
   else if (ts.isIfStatement(statement)) {
@@ -430,7 +441,41 @@ function calculateStatementNodeComplexity(
     const blockComplexity = calculateBlockComplexity(statement, context);
     children.push(blockComplexity);
     score += blockComplexity.score;
+  } // 関数宣言
+  else if (ts.isFunctionDeclaration(statement)) {
+    // 関数本体の複雑度を計算
+    if (statement.body) {
+      const bodyComplexity = calculateBlockComplexity(statement.body, context);
+      children.push(bodyComplexity);
+      score += bodyComplexity.score;
+
+      // 関数の引数の数に基づいて複雑度を追加
+      const paramCount = statement.parameters.length;
+      if (paramCount > 0) {
+        score += paramCount * 0.5;
+        metadata.paramCount = paramCount;
+      }
+    }
+  } // クラス宣言
+  else if (ts.isClassDeclaration(statement)) {
+    // クラスのメンバーの複雑度を計算
+    for (const member of statement.members) {
+      if (ts.isMethodDeclaration(member) && member.body) {
+        const methodComplexity = calculateBlockComplexity(member.body, context);
+        children.push(methodComplexity);
+        score += methodComplexity.score;
+      }
+    }
+
+    // クラスの継承関係に基づいて複雑度を追加
+    if (statement.heritageClauses && statement.heritageClauses.length > 0) {
+      score += statement.heritageClauses.length * 0.5;
+      metadata.heritageCount = statement.heritageClauses.length;
+    }
   }
+
+  // 再帰探索のための深度を戻す
+  context.currentDepth--;
 
   return {
     score,
@@ -487,6 +532,9 @@ export function calculateVariableStatementComplexity(
   const children: ComplexityResult[] = [];
   const metadata: Record<string, unknown> = {};
 
+  // 宣言の数をカウント
+  const declarationCount = statement.declarationList.declarations.length;
+
   for (const declaration of statement.declarationList.declarations) {
     if (declaration.initializer) {
       const initComplexity = calculateExpressionComplexity(
@@ -500,11 +548,15 @@ export function calculateVariableStatementComplexity(
 
   // let宣言は複雑度が高い（変更可能性）
   if ((statement.declarationList.flags & ts.NodeFlags.Let) !== 0) {
-    score += 0.5;
+    // let宣言の数に応じて複雑度を乗算
+    const letMultiplier = 1 + (declarationCount * 0.5);
+    score *= letMultiplier;
     metadata.mutable = true;
+    metadata.letDeclarationCount = declarationCount;
+    metadata.letMultiplier = letMultiplier;
   }
 
-  metadata.declarationCount = statement.declarationList.declarations.length;
+  metadata.declarationCount = declarationCount;
 
   return {
     score,

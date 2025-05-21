@@ -44,3 +44,16 @@ export {
   flattenComplexityResult,
   summarizeComplexityResult,
 } from "./utils.ts";
+
+// Module関連の関数をエクスポート
+export {
+  analyzeDependencies,
+  calculateModuleComplexity,
+  calculateModuleFileComplexity,
+  calculateModulesComplexity,
+  generateModuleComplexityReport,
+  topologicalSort,
+} from "./module.ts";
+
+// Module関連の型定義をエクスポート
+export type { ModuleComplexityResult, ModuleDependency } from "./module.ts";

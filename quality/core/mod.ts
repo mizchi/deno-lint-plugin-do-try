@@ -43,13 +43,18 @@ export {
   calculateBlockComplexity,
   calculateCodeComplexity,
   calculateFileComplexity,
+  calculateModuleComplexity,
+  calculateModuleFileComplexity,
+  calculateModulesComplexity,
   calculateNewExpressionComplexity,
   calculateStatementComplexity,
   createComplexityContext,
   DEFAULT_COMPLEXITY_OPTIONS,
   extractHotspots,
   flattenComplexityResult,
+  generateModuleComplexityReport,
   summarizeComplexityResult,
+  topologicalSort,
 } from "./complexity/mod.ts";
 
 // 複雑度計算の型定義をエクスポート
@@ -57,4 +62,6 @@ export type {
   ComplexityContext,
   ComplexityOptions,
   ComplexityResult,
+  ModuleComplexityResult,
+  ModuleDependency,
 } from "./complexity/mod.ts";
