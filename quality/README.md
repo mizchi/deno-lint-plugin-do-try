@@ -8,6 +8,7 @@
 - [モジュールの構造](#モジュールの構造)
 - [複雑度計算の仕組み](#複雑度計算の仕組み)
 - [複雑度指標の説明](#複雑度指標の説明)
+- [再帰的複雑度計算](#再帰的複雑度計算)
 - [API の使用方法](#api-の使用方法)
 - [CLI の使用方法](#cli-の使用方法)
 - [テストの概要と実行方法](#テストの概要と実行方法)
@@ -59,6 +60,7 @@ quality/
 - **core/types.ts**: モジュール全体で使用される型定義を提供します。
 - **core/parser.ts**: TypeScript の AST を解析するための機能を提供します。
 - **core/metrics.ts**: 複雑度指標を計算するための機能を提供します。
+- **core/complexity.ts**: 再帰的な複雑度計算のための機能を提供します。
 - **core/comparator.ts**: 2 つのコードの複雑度を比較するための機能を提供します。
 - **core/reporter.ts**: 複雑度レポートを生成するための機能を提供します。
 
@@ -169,6 +171,64 @@ try-catch-finally ブロックと throw 文の複雑さに基づくスコアで�
 - try ブロックの行数 × 0.5 をスコアとして加算します。
 - catch ブロックがある場合は 2 ポイント、finally ブロックがある場合は 1.5 ポイントを加算します。
 - 複雑さスコアが 5 を超える try-catch ブロックはホットスポットとして記録されます。
+
+## 再帰的複雑度計算
+
+このモジュールには、TypeScript の AST を再帰的に解析して複雑度を計算する新しい機能が追加されました。この機能は、より詳細で正確な複雑度分析を提供します。
+
+### 主要な機能
+
+#### 複雑度計算の基本構造
+
+- **ComplexityResult**: 複雑度計算の結果を表現する再帰的なデータ構造です。各ノードのスコア、種類、子ノードの情報を含みます。
+- **ComplexityContext**: 計算中に必要な情報（ソースファイル、訪問済みノード、再帰深度など）を保持するコンテキストです。
+- **ComplexityOptions**: 複雑度計算のオプション設定（最大再帰深度、各種重みなど）を定義します。
+
+#### 主要な計算関数
+
+- **calculateExpressionComplexity**: 式の複雑度を再帰的に計算します。二項演算子、条件式、関数呼び出しなど、様々な式の複雑さを評価します。
+- **calculateStatementComplexity**: ステートメントの複雑度を再帰的に計算します。if 文、for 文、try-catch 文など、様々なステートメントの複雑さを評価します。
+- **calculateBlockComplexity**: ブロックの複雑度を再帰的に計算します。ブロック内の各ステートメントの複雑さを累積します。
+- **calculateFileComplexity**: ファイル全体の複雑度を計算します。ファイル内のすべてのトップレベルステートメントの複雑さを評価します。
+- **calculateCodeComplexity**: コード文字列から複雑度を計算します。コードをパースして AST に変換し、その複雑度を計算します。
+
+#### 補助機能
+
+- **extractHotspots**: 複雑度の高いノードを抽出します。特定のしきい値を超える複雑度を持つノードを特定します。
+- **flattenComplexityResult**: 複雑度結果を平坦化します。デバッグや詳細分析に役立ちます。
+
+### 複雑度計算の仕組み
+
+1. コードを TypeScript の AST に変換します。
+2. AST を再帰的に走査し、各ノードの複雑度を計算します。
+3. 式、ステートメント、ブロックの複雑度を個別に評価し、それらを組み合わせて全体の複雑度を算出します。
+4. 循環参照を検出し、無限ループを防ぎます。
+5. 最大再帰深度を設定して、深すぎる再帰を防ぎます。
+
+### 使用例
+
+```typescript
+import {
+  calculateCodeComplexity,
+  extractHotspots,
+  DEFAULT_COMPLEXITY_OPTIONS,
+} from "./quality/mod.ts";
+
+// コードの複雑度を計算
+const code = `
+function factorial(n: number): number {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
+}
+`;
+
+const result = calculateCodeComplexity(code);
+console.log(`総合複雑度スコア: ${result.score}`);
+
+// 複雑度の高いホットスポットを抽出
+const hotspots = extractHotspots(result, 3.0);
+console.log("ホットスポット:", hotspots);
+```
 
 ## API の使用方法
 

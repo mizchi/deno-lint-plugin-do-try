@@ -37,3 +37,24 @@ export {
   compareCodeComplexity,
   generateComparisonReport,
 } from "./comparator.ts";
+
+// 複雑度計算機能をエクスポート
+export {
+  calculateBlockComplexity,
+  calculateCodeComplexity,
+  calculateFileComplexity,
+  calculateNewExpressionComplexity,
+  calculateStatementComplexity,
+  createComplexityContext,
+  DEFAULT_COMPLEXITY_OPTIONS,
+  extractHotspots,
+  flattenComplexityResult,
+  summarizeComplexityResult,
+} from "./complexity/mod.ts";
+
+// 複雑度計算の型定義をエクスポート
+export type {
+  ComplexityContext,
+  ComplexityOptions,
+  ComplexityResult,
+} from "./complexity/mod.ts";
