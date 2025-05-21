@@ -48,10 +48,16 @@ export function calculateStatementComplexity(
  * @param context 複雑度計算コンテキスト
  * @returns 複雑度計算結果
  */
-function calculateStatementComplexityWithPattern(
+/**
+ * 早期リターン条件をチェックする
+ * @param statement 文
+ * @param context 複雑度計算コンテキスト
+ * @returns 早期リターン結果または null
+ */
+function checkEarlyReturnForStatement(
   statement: ts.Statement,
   context: ComplexityContext,
-): ComplexityResult {
+): ComplexityResult | null {
   // 再帰深度チェック
   if (context.currentDepth >= context.maxDepth) {
     return createTruncatedResult(statement);
@@ -62,17 +68,36 @@ function calculateStatementComplexityWithPattern(
     return createCircularReferenceStatementResult(statement);
   }
 
+  return null;
+}
+
+/**
+ * ステートメントの複雑度を計算する（パターンベースの実装）
+ * @param statement ステートメント
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateStatementComplexityWithPattern(
+  statement: ts.Statement,
+  context: ComplexityContext,
+): ComplexityResult {
+  // 早期リターン条件をチェック
+  const earlyResult = checkEarlyReturnForStatement(statement, context);
+  if (earlyResult !== null) {
+    return earlyResult;
+  }
+
   // 訪問済みノードに追加
   context.visitedNodes.add(statement);
   context.currentDepth++;
 
-  // ノードタイプに基づいて複雑度を計算
-  const result = calculateStatementNodeComplexity(statement, context);
-
-  // 再帰深度を戻す
-  context.currentDepth--;
-
-  return result;
+  try {
+    // ノードタイプに基づいて複雑度を計算
+    return calculateStatementNodeComplexity(statement, context);
+  } finally {
+    // 再帰深度を戻す（例外が発生しても確実に実行）
+    context.currentDepth--;
+  }
 }
 
 /**
@@ -132,86 +157,157 @@ function createCircularReferenceStatementResult(
  * @param context 複雑度計算コンテキスト
  * @returns 複雑度計算結果
  */
-function calculateStatementNodeComplexity(
-  statement: ts.Statement,
+/**
+ * 式文の複雑度を計算する
+ * @param statement 式文
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateExpressionStatementNodeComplexity(
+  statement: ts.ExpressionStatement,
   context: ComplexityContext,
 ): ComplexityResult {
-  // 基本スコア
+  let score = 1;
+  const children: ComplexityResult[] = [];
+
+  if (statement.expression) {
+    const exprComplexity = calculateExpressionComplexity(
+      statement.expression,
+      context,
+    );
+    children.push(exprComplexity);
+    score += exprComplexity.score;
+  }
+
+  return {
+    score,
+    nodeType: ts.SyntaxKind[statement.kind],
+    children,
+    lineInfo: getNodeLineInfo(statement, context.sourceFile),
+  };
+}
+
+/**
+ * 変数宣言文の複雑度を計算する
+ * @param statement 変数宣言文
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateVariableStatementNodeComplexity(
+  statement: ts.VariableStatement,
+  context: ComplexityContext,
+): ComplexityResult {
   let score = 1;
   const children: ComplexityResult[] = [];
   const metadata: Record<string, unknown> = {};
 
-  // 再帰探索のための深度を増やす
-  context.currentDepth++;
+  // 宣言の数をカウント
+  const declarationCount = statement.declarationList.declarations.length;
 
-  // 式文
-  if (ts.isExpressionStatement(statement)) {
-    if (statement.expression) {
-      const exprComplexity = calculateExpressionComplexity(
-        statement.expression,
+  // 各宣言の初期化式の複雑度を計算
+  for (const declaration of statement.declarationList.declarations) {
+    if (declaration.initializer) {
+      const initComplexity = calculateExpressionComplexity(
+        declaration.initializer,
         context,
       );
-      children.push(exprComplexity);
-      score += exprComplexity.score;
+      children.push(initComplexity);
+      score += initComplexity.score;
     }
-  } // 変数宣言
-  else if (ts.isVariableStatement(statement)) {
-    // 宣言の数をカウント
-    const declarationCount = statement.declarationList.declarations.length;
+  }
 
-    // 各宣言の初期化式の複雑度を計算
-    for (const declaration of statement.declarationList.declarations) {
-      if (declaration.initializer) {
-        const initComplexity = calculateExpressionComplexity(
-          declaration.initializer,
-          context,
-        );
-        children.push(initComplexity);
-        score += initComplexity.score;
-      }
-    }
+  // let宣言は複雑度が高い（変更可能性）
+  if ((statement.declarationList.flags & ts.NodeFlags.Let) !== 0) {
+    // let宣言の数に応じて複雑度を乗算
+    const letMultiplier = 1 + (declarationCount * 0.5);
+    score *= letMultiplier;
+    metadata.mutable = true;
+    metadata.letDeclarationCount = declarationCount;
+    metadata.letMultiplier = letMultiplier;
+  }
 
-    // let宣言は複雑度が高い（変更可能性）
-    if ((statement.declarationList.flags & ts.NodeFlags.Let) !== 0) {
-      // let宣言の数に応じて複雑度を乗算
-      const letMultiplier = 1 + (declarationCount * 0.5);
-      score *= letMultiplier;
-      metadata.mutable = true;
-      metadata.letDeclarationCount = declarationCount;
-      metadata.letMultiplier = letMultiplier;
-    }
-  } // if文
-  else if (ts.isIfStatement(statement)) {
-    // 条件式の複雑さ
-    const conditionComplexity = calculateExpressionComplexity(
-      statement.expression,
+  return {
+    score,
+    nodeType: ts.SyntaxKind[statement.kind],
+    children,
+    lineInfo: getNodeLineInfo(statement, context.sourceFile),
+    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+  };
+}
+
+/**
+ * if文の複雑度を計算する
+ * @param statement if文
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateIfStatementNodeComplexity(
+  statement: ts.IfStatement,
+  context: ComplexityContext,
+): ComplexityResult {
+  let score = 1;
+  const children: ComplexityResult[] = [];
+
+  // 条件式の複雑さ
+  const conditionComplexity = calculateExpressionComplexity(
+    statement.expression,
+    context,
+  );
+  children.push(conditionComplexity);
+  score += conditionComplexity.score;
+
+  // then節の複雑さ
+  const thenComplexity = calculateStatementComplexity(
+    statement.thenStatement,
+    context,
+  );
+  children.push(thenComplexity);
+  score += thenComplexity.score;
+
+  // else節の複雑さ（存在する場合）
+  if (statement.elseStatement) {
+    const elseComplexity = calculateStatementComplexity(
+      statement.elseStatement,
       context,
     );
-    children.push(conditionComplexity);
-    score += conditionComplexity.score;
+    children.push(elseComplexity);
+    score += elseComplexity.score;
+  }
 
-    // then節の複雑さ
-    const thenComplexity = calculateStatementComplexity(
-      statement.thenStatement,
-      context,
-    );
-    children.push(thenComplexity);
-    score += thenComplexity.score;
+  // if文自体の複雑さ
+  score += 0.5;
 
-    // else節の複雑さ（存在する場合）
-    if (statement.elseStatement) {
-      const elseComplexity = calculateStatementComplexity(
-        statement.elseStatement,
-        context,
-      );
-      children.push(elseComplexity);
-      score += elseComplexity.score;
-    }
+  return {
+    score,
+    nodeType: ts.SyntaxKind[statement.kind],
+    children,
+    lineInfo: getNodeLineInfo(statement, context.sourceFile),
+  };
+}
 
-    // if文自体の複雑さ
-    score += 0.5;
-  } // for文
-  else if (ts.isForStatement(statement)) {
+/**
+ * ループ文の複雑度を計算する（for, for-of, for-in, while, do-while）
+ * @param statement ループ文
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateLoopStatementNodeComplexity(
+  statement:
+    | ts.ForStatement
+    | ts.ForOfStatement
+    | ts.ForInStatement
+    | ts.WhileStatement
+    | ts.DoStatement,
+  context: ComplexityContext,
+): ComplexityResult {
+  let score = 1;
+  const children: ComplexityResult[] = [];
+  const metadata: Record<string, unknown> = {};
+
+  // ループの種類に基づいて処理
+  if (ts.isForStatement(statement)) {
+    metadata.loopType = "for";
+
     // 初期化式の複雑さ
     if (statement.initializer) {
       if (ts.isVariableDeclarationList(statement.initializer)) {
@@ -255,18 +351,11 @@ function calculateStatementNodeComplexity(
       score += incrementorComplexity.score;
     }
 
-    // 本体の複雑さ
-    const bodyComplexity = calculateStatementComplexity(
-      statement.statement,
-      context,
-    );
-    children.push(bodyComplexity);
-    score += bodyComplexity.score;
-
     // for文自体の複雑さ
     score += 1;
-  } // for-of文/for-in文
-  else if (ts.isForOfStatement(statement) || ts.isForInStatement(statement)) {
+  } else if (ts.isForOfStatement(statement) || ts.isForInStatement(statement)) {
+    metadata.loopType = ts.isForOfStatement(statement) ? "for-of" : "for-in";
+
     // 初期化部分の複雑さ
     if (ts.isVariableDeclarationList(statement.initializer)) {
       for (const declaration of statement.initializer.declarations) {
@@ -289,18 +378,11 @@ function calculateStatementNodeComplexity(
     children.push(expressionComplexity);
     score += expressionComplexity.score;
 
-    // 本体の複雑さ
-    const bodyComplexity = calculateStatementComplexity(
-      statement.statement,
-      context,
-    );
-    children.push(bodyComplexity);
-    score += bodyComplexity.score;
-
     // for-of/for-in文自体の複雑さ
     score += 0.8;
-  } // while文
-  else if (ts.isWhileStatement(statement)) {
+  } else if (ts.isWhileStatement(statement)) {
+    metadata.loopType = "while";
+
     // 条件式の複雑さ
     const conditionComplexity = calculateExpressionComplexity(
       statement.expression,
@@ -309,25 +391,10 @@ function calculateStatementNodeComplexity(
     children.push(conditionComplexity);
     score += conditionComplexity.score;
 
-    // 本体の複雑さ
-    const bodyComplexity = calculateStatementComplexity(
-      statement.statement,
-      context,
-    );
-    children.push(bodyComplexity);
-    score += bodyComplexity.score;
-
     // while文自体の複雑さ
     score += 0.8;
-  } // do-while文
-  else if (ts.isDoStatement(statement)) {
-    // 本体の複雑さ
-    const bodyComplexity = calculateStatementComplexity(
-      statement.statement,
-      context,
-    );
-    children.push(bodyComplexity);
-    score += bodyComplexity.score;
+  } else if (ts.isDoStatement(statement)) {
+    metadata.loopType = "do-while";
 
     // 条件式の複雑さ
     const conditionComplexity = calculateExpressionComplexity(
@@ -339,143 +406,15 @@ function calculateStatementNodeComplexity(
 
     // do-while文自体の複雑さ
     score += 1;
-  } // switch文
-  else if (ts.isSwitchStatement(statement)) {
-    // 条件式の複雑さ
-    const conditionComplexity = calculateExpressionComplexity(
-      statement.expression,
-      context,
-    );
-    children.push(conditionComplexity);
-    score += conditionComplexity.score;
-
-    // 各caseの複雑さ
-    for (const clause of statement.caseBlock.clauses) {
-      // case式の複雑さ（default節でない場合）
-      if (ts.isCaseClause(clause) && clause.expression) {
-        const caseExprComplexity = calculateExpressionComplexity(
-          clause.expression,
-          context,
-        );
-        children.push(caseExprComplexity);
-        score += caseExprComplexity.score * 0.3; // case式は比較的単純なので重みを下げる
-      }
-
-      // case本体の複雑さ
-      for (const stmt of clause.statements) {
-        const stmtComplexity = calculateStatementComplexity(stmt, context);
-        children.push(stmtComplexity);
-        score += stmtComplexity.score;
-      }
-    }
-
-    // switch文自体の複雑さ（ケース数に基づく）
-    const caseCount = statement.caseBlock.clauses.length;
-    score += caseCount * 0.5;
-    metadata.caseCount = caseCount;
-  } // try-catch文
-  else if (ts.isTryStatement(statement)) {
-    // tryブロックの複雑さ
-    const tryBlockComplexity = calculateBlockComplexity(
-      statement.tryBlock,
-      context,
-    );
-    children.push(tryBlockComplexity);
-    score += tryBlockComplexity.score;
-
-    // catchブロックの複雑さ（存在する場合）
-    if (statement.catchClause) {
-      // catch変数の複雑さ
-      if (statement.catchClause.variableDeclaration) {
-        score += 0.5;
-      }
-
-      // catchブロックの複雑さ
-      const catchBlockComplexity = calculateBlockComplexity(
-        statement.catchClause.block,
-        context,
-      );
-      children.push(catchBlockComplexity);
-      score += catchBlockComplexity.score;
-      score += 2; // catchブロック自体の複雑さ
-    }
-
-    // finallyブロックの複雑さ（存在する場合）
-    if (statement.finallyBlock) {
-      const finallyBlockComplexity = calculateBlockComplexity(
-        statement.finallyBlock,
-        context,
-      );
-      children.push(finallyBlockComplexity);
-      score += finallyBlockComplexity.score;
-      score += 1.5; // finallyブロック自体の複雑さ
-    }
-
-    // try-catch文自体の複雑さ
-    score += 1;
-  } // throw文
-  else if (ts.isThrowStatement(statement)) {
-    if (statement.expression) {
-      const exprComplexity = calculateExpressionComplexity(
-        statement.expression,
-        context,
-      );
-      children.push(exprComplexity);
-      score += exprComplexity.score;
-    }
-
-    // throw文自体の複雑さ
-    score += 1;
-  } // return文
-  else if (ts.isReturnStatement(statement)) {
-    if (statement.expression) {
-      const exprComplexity = calculateExpressionComplexity(
-        statement.expression,
-        context,
-      );
-      children.push(exprComplexity);
-      score += exprComplexity.score;
-    }
-  } // ブロック文
-  else if (ts.isBlock(statement)) {
-    const blockComplexity = calculateBlockComplexity(statement, context);
-    children.push(blockComplexity);
-    score += blockComplexity.score;
-  } // 関数宣言
-  else if (ts.isFunctionDeclaration(statement)) {
-    // 関数本体の複雑度を計算
-    if (statement.body) {
-      const bodyComplexity = calculateBlockComplexity(statement.body, context);
-      children.push(bodyComplexity);
-      score += bodyComplexity.score;
-
-      // 関数の引数の数に基づいて複雑度を追加
-      const paramCount = statement.parameters.length;
-      if (paramCount > 0) {
-        score += paramCount * 0.5;
-        metadata.paramCount = paramCount;
-      }
-    }
-  } // クラス宣言
-  else if (ts.isClassDeclaration(statement)) {
-    // クラスのメンバーの複雑度を計算
-    for (const member of statement.members) {
-      if (ts.isMethodDeclaration(member) && member.body) {
-        const methodComplexity = calculateBlockComplexity(member.body, context);
-        children.push(methodComplexity);
-        score += methodComplexity.score;
-      }
-    }
-
-    // クラスの継承関係に基づいて複雑度を追加
-    if (statement.heritageClauses && statement.heritageClauses.length > 0) {
-      score += statement.heritageClauses.length * 0.5;
-      metadata.heritageCount = statement.heritageClauses.length;
-    }
   }
 
-  // 再帰探索のための深度を戻す
-  context.currentDepth--;
+  // 本体の複雑さ（すべてのループタイプに共通）
+  const bodyComplexity = calculateStatementComplexity(
+    statement.statement,
+    context,
+  );
+  children.push(bodyComplexity);
+  score += bodyComplexity.score;
 
   return {
     score,
@@ -484,6 +423,80 @@ function calculateStatementNodeComplexity(
     lineInfo: getNodeLineInfo(statement, context.sourceFile),
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
   };
+}
+
+/**
+ * 文の種類に基づいて適切な計算関数を選択する
+ * @param statement 文
+ * @param context 複雑度計算コンテキスト
+ * @returns 計算関数
+ */
+function selectStatementCalculator(
+  statement: ts.Statement,
+  context: ComplexityContext,
+): () => ComplexityResult {
+  // 式文
+  if (ts.isExpressionStatement(statement)) {
+    return () => calculateExpressionStatementNodeComplexity(statement, context);
+  } // 変数宣言
+  else if (ts.isVariableStatement(statement)) {
+    return () => calculateVariableStatementNodeComplexity(statement, context);
+  } // if文
+  else if (ts.isIfStatement(statement)) {
+    return () => calculateIfStatementNodeComplexity(statement, context);
+  } // ループ文
+  else if (
+    ts.isForStatement(statement) ||
+    ts.isForOfStatement(statement) ||
+    ts.isForInStatement(statement) ||
+    ts.isWhileStatement(statement) ||
+    ts.isDoStatement(statement)
+  ) {
+    return () => calculateLoopStatementNodeComplexity(statement, context);
+  } // その他の文タイプ（デフォルト）
+  else {
+    return () => {
+      let score = 1;
+      const children: ComplexityResult[] = [];
+
+      // ブロック文
+      if (ts.isBlock(statement)) {
+        const blockComplexity = calculateBlockComplexity(statement, context);
+        children.push(blockComplexity);
+        score += blockComplexity.score;
+      }
+
+      return {
+        score,
+        nodeType: ts.SyntaxKind[statement.kind],
+        children,
+        lineInfo: getNodeLineInfo(statement, context.sourceFile),
+      };
+    };
+  }
+}
+
+/**
+ * ノードの複雑度を計算する
+ * @param statement 文
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateStatementNodeComplexity(
+  statement: ts.Statement,
+  context: ComplexityContext,
+): ComplexityResult {
+  // 再帰探索のための深度を増やす
+  context.currentDepth++;
+
+  try {
+    // 文の種類に基づいて適切な計算関数を選択して実行
+    const calculator = selectStatementCalculator(statement, context);
+    return calculator();
+  } finally {
+    // 再帰探索のための深度を戻す（例外が発生しても確実に実行）
+    context.currentDepth--;
+  }
 }
 
 /**

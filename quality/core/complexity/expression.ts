@@ -46,10 +46,16 @@ export function calculateExpressionComplexity(
  * @param context 複雑度計算コンテキスト
  * @returns 複雑度計算結果
  */
-function calculateExpressionComplexityWithPattern(
+/**
+ * 早期リターン条件をチェックする
+ * @param expression 式
+ * @param context 複雑度計算コンテキスト
+ * @returns 早期リターン結果または null
+ */
+function checkEarlyReturn(
   expression: ts.Expression,
   context: ComplexityContext,
-): ComplexityResult {
+): ComplexityResult | null {
   // 再帰深度チェック
   if (context.currentDepth >= context.maxDepth) {
     return createTruncatedResult(expression);
@@ -60,17 +66,36 @@ function calculateExpressionComplexityWithPattern(
     return createCircularReferenceResult(expression);
   }
 
+  return null;
+}
+
+/**
+ * 式の複雑度を計算する（パターンベースの実装）
+ * @param expression 式
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
+function calculateExpressionComplexityWithPattern(
+  expression: ts.Expression,
+  context: ComplexityContext,
+): ComplexityResult {
+  // 早期リターン条件をチェック
+  const earlyResult = checkEarlyReturn(expression, context);
+  if (earlyResult !== null) {
+    return earlyResult;
+  }
+
   // 訪問済みノードに追加
   context.visitedNodes.add(expression);
   context.currentDepth++;
 
-  // ノードタイプに基づいて複雑度を計算
-  const result = calculateNodeComplexity(expression, context);
-
-  // 再帰深度を戻す
-  context.currentDepth--;
-
-  return result;
+  try {
+    // ノードタイプに基づいて複雑度を計算
+    return calculateNodeComplexity(expression, context);
+  } finally {
+    // 再帰深度を戻す（例外が発生しても確実に実行）
+    context.currentDepth--;
+  }
 }
 
 /**
@@ -153,91 +178,106 @@ function getBinaryOperatorComplexity(kind: ts.SyntaxKind): number {
  * @param context 複雑度計算コンテキスト
  * @returns 複雑度計算結果
  */
+/**
+ * 式の種類に基づいて適切な計算関数を選択する
+ * @param expression 式
+ * @param context 複雑度計算コンテキスト
+ * @returns 計算関数と式のタイプ
+ */
+function selectExpressionCalculator(
+  expression: ts.Expression,
+  context: ComplexityContext,
+): {
+  calculator: (expr: any, ctx: ComplexityContext) => ComplexityResult;
+  type: string;
+} {
+  if (ts.isBinaryExpression(expression)) {
+    return {
+      calculator: calculateBinaryExpressionComplexity,
+      type: "binary",
+    };
+  } else if (ts.isPrefixUnaryExpression(expression)) {
+    return {
+      calculator: calculatePrefixUnaryExpressionComplexity,
+      type: "prefixUnary",
+    };
+  } else if (ts.isPostfixUnaryExpression(expression)) {
+    return {
+      calculator: calculatePostfixUnaryExpressionComplexity,
+      type: "postfixUnary",
+    };
+  } else if (ts.isConditionalExpression(expression)) {
+    return {
+      calculator: calculateConditionalExpressionComplexity,
+      type: "conditional",
+    };
+  } else if (ts.isCallExpression(expression)) {
+    return {
+      calculator: calculateCallExpressionComplexity,
+      type: "call",
+    };
+  } else if (ts.isPropertyAccessExpression(expression)) {
+    return {
+      calculator: calculatePropertyAccessExpressionComplexity,
+      type: "propertyAccess",
+    };
+  } else if (ts.isElementAccessExpression(expression)) {
+    return {
+      calculator: calculateElementAccessExpressionComplexity,
+      type: "elementAccess",
+    };
+  } else if (ts.isObjectLiteralExpression(expression)) {
+    return {
+      calculator: calculateObjectLiteralExpressionComplexity,
+      type: "objectLiteral",
+    };
+  } else if (ts.isArrayLiteralExpression(expression)) {
+    return {
+      calculator: calculateArrayLiteralExpressionComplexity,
+      type: "arrayLiteral",
+    };
+  }
+
+  // デフォルトの計算関数（基本スコアのみ）
+  return {
+    calculator: (expr: ts.Expression, ctx: ComplexityContext) => ({
+      score: 1,
+      nodeType: ts.SyntaxKind[expr.kind],
+      children: [],
+      lineInfo: getNodeLineInfo(expr, ctx.sourceFile),
+    }),
+    type: "default",
+  };
+}
+
+/**
+ * ノードの複雑度を計算する
+ * @param expression 式
+ * @param context 複雑度計算コンテキスト
+ * @returns 複雑度計算結果
+ */
 function calculateNodeComplexity(
   expression: ts.Expression,
   context: ComplexityContext,
 ): ComplexityResult {
-  // 基本スコア
-  let score = 1;
-  const children: ComplexityResult[] = [];
-  const metadata: Record<string, unknown> = {};
+  // 式の種類に基づいて適切な計算関数を選択
+  const { calculator, type } = selectExpressionCalculator(expression, context);
 
-  // ノードタイプに基づいて複雑度を計算
-  if (ts.isBinaryExpression(expression)) {
-    const result = calculateBinaryExpressionComplexity(expression, context);
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isPrefixUnaryExpression(expression)) {
-    const result = calculatePrefixUnaryExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isPostfixUnaryExpression(expression)) {
-    const result = calculatePostfixUnaryExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isConditionalExpression(expression)) {
-    const result = calculateConditionalExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isCallExpression(expression)) {
-    const result = calculateCallExpressionComplexity(expression, context);
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isPropertyAccessExpression(expression)) {
-    const result = calculatePropertyAccessExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isElementAccessExpression(expression)) {
-    const result = calculateElementAccessExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isObjectLiteralExpression(expression)) {
-    const result = calculateObjectLiteralExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
-  } else if (ts.isArrayLiteralExpression(expression)) {
-    const result = calculateArrayLiteralExpressionComplexity(
-      expression,
-      context,
-    );
-    score = result.score;
-    children.push(...result.children);
-    Object.assign(metadata, result.metadata || {});
+  // 選択した関数で複雑度を計算
+  const result = calculator(expression, context);
+
+  // メタデータに式のタイプを追加
+  if (!result.metadata) {
+    result.metadata = {};
+  }
+  result.metadata.expressionType = type;
+
+  // 行情報が設定されていない場合は追加
+  if (!result.lineInfo) {
+    result.lineInfo = getNodeLineInfo(expression, context.sourceFile);
   }
 
-  return {
-    score,
-    nodeType: ts.SyntaxKind[expression.kind],
-    children,
-    lineInfo: getNodeLineInfo(expression, context.sourceFile),
-    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-  };
+  return result;
 }
 
 /**

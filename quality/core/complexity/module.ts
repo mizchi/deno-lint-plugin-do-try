@@ -61,6 +61,40 @@ export interface ModuleComplexityResult {
  * @param filePath ファイルパス
  * @returns 依存先のモジュールパスの配列
  */
+/**
+ * インポート宣言から依存関係を抽出する
+ * @param statement ステートメント
+ * @param filePath 現在のファイルパス
+ * @returns 依存先のパス（相対パスの場合のみ）
+ */
+function extractDependencyFromImport(
+  statement: ts.ImportDeclaration,
+  filePath: string,
+): string | null {
+  const moduleSpecifier = statement.moduleSpecifier;
+
+  // 文字列リテラルでない場合はスキップ
+  if (!ts.isStringLiteral(moduleSpecifier)) {
+    return null;
+  }
+
+  const importPath = moduleSpecifier.text;
+
+  // 相対パスのインポートのみ処理（外部モジュールは除外）
+  if (!importPath.startsWith(".")) {
+    return null;
+  }
+
+  // 相対パスを絶対パスに変換
+  return resolveImportPath(filePath, importPath);
+}
+
+/**
+ * モジュールの依存関係を解析する
+ * @param sourceFile ソースファイル
+ * @param filePath ファイルパス
+ * @returns 依存先のモジュールパスの配列
+ */
 export function analyzeDependencies(
   sourceFile: ts.SourceFile,
   filePath: string,
@@ -68,25 +102,56 @@ export function analyzeDependencies(
   const dependencies: string[] = [];
 
   // インポート宣言を検索
-  sourceFile.statements.forEach((statement) => {
-    if (ts.isImportDeclaration(statement)) {
-      const moduleSpecifier = statement.moduleSpecifier;
-
-      // 文字列リテラルの場合のみ処理
-      if (ts.isStringLiteral(moduleSpecifier)) {
-        const importPath = moduleSpecifier.text;
-
-        // 相対パスのインポートのみ処理（外部モジュールは除外）
-        if (importPath.startsWith(".")) {
-          // 相対パスを絶対パスに変換
-          const absolutePath = resolveImportPath(filePath, importPath);
-          dependencies.push(absolutePath);
-        }
-      }
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) {
+      continue;
     }
-  });
+
+    const dependency = extractDependencyFromImport(statement, filePath);
+    if (dependency) {
+      dependencies.push(dependency);
+    }
+  }
 
   return dependencies;
+}
+
+/**
+ * モジュールのインポート情報を解析する
+ * @param sourceFile ソースファイル
+ * @returns インポート情報 {ライブラリインポート数, ローカルインポート数}
+ */
+/**
+ * インポート宣言からインポートされたシンボル数を計算する
+ * @param importClause インポート句
+ * @returns インポートされたシンボル数
+ */
+function countImportedSymbols(
+  importClause: ts.ImportClause | undefined,
+): number {
+  if (!importClause) {
+    return 0;
+  }
+
+  let count = 0;
+
+  // デフォルトインポート
+  if (importClause.name) {
+    count += 1;
+  }
+
+  // 名前付きインポートと名前空間インポート
+  if (importClause.namedBindings) {
+    if (ts.isNamedImports(importClause.namedBindings)) {
+      // 名前付きインポート
+      count += importClause.namedBindings.elements.length;
+    } else if (ts.isNamespaceImport(importClause.namedBindings)) {
+      // 名前空間インポート
+      count += 1;
+    }
+  }
+
+  return count;
 }
 
 /**
@@ -101,61 +166,28 @@ export function analyzeImports(
   let localImports = 0;
 
   // インポート宣言を検索
-  sourceFile.statements.forEach((statement) => {
-    if (ts.isImportDeclaration(statement)) {
-      const moduleSpecifier = statement.moduleSpecifier;
-
-      // 文字列リテラルの場合のみ処理
-      if (ts.isStringLiteral(moduleSpecifier)) {
-        const importPath = moduleSpecifier.text;
-
-        // インポート種別を判定
-        if (importPath.startsWith(".")) {
-          // ローカルインポート（相対パス）
-          // インポートされたシンボル数をカウント
-          if (statement.importClause) {
-            if (statement.importClause.name) {
-              // デフォルトインポート
-              localImports += 1;
-            }
-            if (statement.importClause.namedBindings) {
-              if (ts.isNamedImports(statement.importClause.namedBindings)) {
-                // 名前付きインポート
-                localImports +=
-                  statement.importClause.namedBindings.elements.length;
-              } else if (
-                ts.isNamespaceImport(statement.importClause.namedBindings)
-              ) {
-                // 名前空間インポート
-                localImports += 1;
-              }
-            }
-          }
-        } else {
-          // ライブラリインポート（絶対パス）
-          // インポートされたシンボル数をカウント
-          if (statement.importClause) {
-            if (statement.importClause.name) {
-              // デフォルトインポート
-              libraryImports += 1;
-            }
-            if (statement.importClause.namedBindings) {
-              if (ts.isNamedImports(statement.importClause.namedBindings)) {
-                // 名前付きインポート
-                libraryImports +=
-                  statement.importClause.namedBindings.elements.length;
-              } else if (
-                ts.isNamespaceImport(statement.importClause.namedBindings)
-              ) {
-                // 名前空間インポート
-                libraryImports += 1;
-              }
-            }
-          }
-        }
-      }
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) {
+      continue;
     }
-  });
+
+    const moduleSpecifier = statement.moduleSpecifier;
+    if (!ts.isStringLiteral(moduleSpecifier)) {
+      continue;
+    }
+
+    const importPath = moduleSpecifier.text;
+    const symbolCount = countImportedSymbols(statement.importClause);
+
+    // インポート種別を判定
+    if (importPath.startsWith(".")) {
+      // ローカルインポート（相対パス）
+      localImports += symbolCount;
+    } else {
+      // ライブラリインポート（絶対パス）
+      libraryImports += symbolCount;
+    }
+  }
 
   return { libraryImports, localImports };
 }
@@ -219,29 +251,44 @@ function normalizePath(path: string): string {
  * @param modules モジュールの依存関係情報の配列
  * @returns ソートされたモジュールの配列
  */
-export function topologicalSort(
+/**
+ * モジュールの訪問状態を初期化する
+ * @param modules モジュールの配列
+ * @returns モジュールのマップ
+ */
+function initializeModuleMap(
   modules: ModuleDependency[],
-): ModuleDependency[] {
-  const result: ModuleDependency[] = [];
+): Map<string, ModuleDependency> {
   const moduleMap = new Map<string, ModuleDependency>();
 
-  // モジュールをマップに登録
-  modules.forEach((module) => {
+  for (const module of modules) {
     moduleMap.set(module.path, module);
     // 訪問フラグを初期化
     module.visited = false;
     module.temporaryMark = false;
-  });
+  }
 
-  // 各モジュールに対してDFSを実行
-  modules.forEach((module) => {
-    if (!module.visited) {
-      visitModule(module, moduleMap, result);
-    }
-  });
+  return moduleMap;
+}
 
-  // 結果を反転（依存関係が少ない順）
-  return result.reverse();
+/**
+ * 循環参照を検出して依存関係から除外する
+ * @param module 現在のモジュール
+ * @param depPath 依存先のパス
+ * @param depModule 依存先のモジュール
+ * @returns 循環参照が検出されたかどうか
+ */
+function handleCircularDependency(
+  module: ModuleDependency,
+  depPath: string,
+  depModule: ModuleDependency,
+): boolean {
+  if (depModule.temporaryMark) {
+    // 循環参照を依存関係から除外
+    module.dependencies = module.dependencies.filter((p) => p !== depPath);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -255,14 +302,8 @@ function visitModule(
   moduleMap: Map<string, ModuleDependency>,
   result: ModuleDependency[],
 ): void {
-  // 循環依存のチェック
-  if (module.temporaryMark) {
-    // 循環依存の場合は処理を中断
-    return;
-  }
-
-  // 既に訪問済みの場合はスキップ
-  if (module.visited) {
+  // 早期リターン条件
+  if (module.temporaryMark || module.visited) {
     return;
   }
 
@@ -272,15 +313,16 @@ function visitModule(
   // 依存先を再帰的に訪問
   for (const depPath of module.dependencies) {
     const depModule = moduleMap.get(depPath);
-    if (depModule) {
-      // 循環参照を検出した場合は、依存関係から除外
-      if (depModule.temporaryMark) {
-        // 循環参照を依存関係から除外
-        module.dependencies = module.dependencies.filter((p) => p !== depPath);
-        continue;
-      }
-      visitModule(depModule, moduleMap, result);
+    if (!depModule) {
+      continue;
     }
+
+    // 循環参照を検出した場合は、依存関係から除外してスキップ
+    if (handleCircularDependency(module, depPath, depModule)) {
+      continue;
+    }
+
+    visitModule(depModule, moduleMap, result);
   }
 
   // 訪問完了
@@ -289,6 +331,28 @@ function visitModule(
 
   // 結果に追加
   result.push(module);
+}
+
+/**
+ * トポロジカルソートを実行する
+ * @param modules モジュールの依存関係情報の配列
+ * @returns ソートされたモジュールの配列
+ */
+export function topologicalSort(
+  modules: ModuleDependency[],
+): ModuleDependency[] {
+  const result: ModuleDependency[] = [];
+  const moduleMap = initializeModuleMap(modules);
+
+  // 各モジュールに対してDFSを実行
+  for (const module of modules) {
+    if (!module.visited) {
+      visitModule(module, moduleMap, result);
+    }
+  }
+
+  // 結果を反転（依存関係が少ない順）
+  return result.reverse();
 }
 
 /**
@@ -316,10 +380,11 @@ export function calculateModuleComplexity(
   });
 
   // 再帰的に依存モジュールの複雑度を計算する関数
-  function calculateDependencyComplexity(
+  // 早期リターン条件をチェックする関数
+  function shouldReturnEarly(
     module: ModuleDependency,
-    depth = 0,
-  ): number {
+    depth: number,
+  ): number | null {
     // 最大再帰深度を超えた場合は現在の値を返す（無限ループ防止）
     if (depth > maxDepth) {
       return module.moduleComplexity || 0;
@@ -340,60 +405,92 @@ export function calculateModuleComplexity(
       return module.moduleComplexity || 0;
     }
 
-    // 計算中としてマーク
-    processingModules.add(module.path);
+    // 早期リターン条件に該当しない場合はnullを返す
+    return null;
+  }
 
-    // ファイル単体の複雑度
-    let complexity = 0;
-
-    // ファイルの複雑度を再帰的に計算（子ノードの複雑度も含める）
-    if (module.fileComplexity) {
-      // 子ノードの複雑度を累積
-      complexity = module.fileComplexity.score;
-
-      // 子ノードの複雑度を再帰的に加算
-      for (const child of module.fileComplexity.children) {
-        complexity += child.score;
-      }
+  // ファイルの複雑度を計算する関数
+  function calculateFileNodeComplexity(module: ModuleDependency): number {
+    if (!module.fileComplexity) {
+      return 0;
     }
 
+    // 子ノードの複雑度を累積
+    let complexity = module.fileComplexity.score;
+
+    // 子ノードの複雑度を加算
+    for (const child of module.fileComplexity.children) {
+      complexity += child.score;
+    }
+
+    return complexity;
+  }
+
+  // 依存先の複雑度を計算する関数
+  function calculateDependenciesComplexity(
+    module: ModuleDependency,
+    depth: number,
+  ): number {
     let dependencyComplexity = 0;
 
     // 依存先の複雑度を加算
     for (const depPath of module.dependencies) {
       const depModule = moduleMap.get(depPath);
-      if (depModule) {
-        // 循環参照を検出した場合は、依存関係から除外
-        if (processingModules.has(depPath)) {
-          continue;
-        }
-
-        // 依存先の複雑度を再帰的に計算（深度を増やす）
-        const depComplexity = calculateDependencyComplexity(
-          depModule,
-          depth + 1,
-        );
-
-        // 依存先の複雑度を累積
-        dependencyComplexity += depComplexity;
+      if (!depModule || processingModules.has(depPath)) {
+        continue;
       }
+
+      // 依存先の複雑度を再帰的に計算（深度を増やす）
+      const depComplexity = calculateDependencyComplexity(
+        depModule,
+        depth + 1,
+      );
+
+      // 依存先の複雑度を累積
+      dependencyComplexity += depComplexity;
     }
+
+    return dependencyComplexity;
+  }
+
+  // メイン関数
+  function calculateDependencyComplexity(
+    module: ModuleDependency,
+    depth = 0,
+  ): number {
+    // 早期リターン条件をチェック
+    const earlyReturnValue = shouldReturnEarly(module, depth);
+    if (earlyReturnValue !== null) {
+      return earlyReturnValue;
+    }
+
+    // 計算中としてマーク
+    processingModules.add(module.path);
+
+    // ファイル単体の複雑度を計算
+    const complexity = calculateFileNodeComplexity(module);
+
+    // 依存先の複雑度を計算
+    const dependencyComplexity = calculateDependenciesComplexity(module, depth);
 
     // 計算中マークを解除
     processingModules.delete(module.path);
 
+    // 最終的な複雑度を計算
+    let finalComplexity = complexity;
+
     // 依存先の複雑度の一部を加算（重み付け）
     // 依存モジュールが多いほど複雑度が過大評価されないように調整
     if (module.dependencies.length > 0) {
-      complexity += dependencyComplexity * 0.5 /
+      finalComplexity += dependencyComplexity * 0.5 /
         Math.sqrt(module.dependencies.length);
     }
 
     // モジュールの複雑度を設定
-    module.moduleComplexity = complexity;
+    module.moduleComplexity = finalComplexity;
     calculatedModules.add(module.path);
 
-    return complexity;
+    return finalComplexity;
   }
 
   // 各モジュールの複雑度を計算（トポロジカルソート順）
@@ -485,6 +582,86 @@ export function calculateModuleFileComplexity(
  * @param options 複雑度計算オプション
  * @returns モジュールの複雑度計算結果の配列
  */
+/**
+ * ファイルからモジュール依存関係情報を作成する
+ * @param filePath ファイルパス
+ * @param content ファイル内容
+ * @param options 複雑度計算オプション
+ * @returns モジュール依存関係情報
+ */
+function createModuleDependency(
+  filePath: string,
+  content: string,
+  options: ComplexityOptions,
+): ModuleDependency {
+  // ソースファイルを作成
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+
+  // 依存関係を解析
+  const dependencies = analyzeDependencies(sourceFile, filePath);
+
+  // ファイルの複雑度を計算
+  const fileComplexity = calculateModuleFileComplexity(
+    filePath,
+    content,
+    options,
+  );
+
+  // モジュール情報を作成
+  return {
+    path: filePath,
+    dependencies,
+    fileComplexity,
+    moduleComplexity: fileComplexity.score, // 初期値として設定
+  };
+}
+
+/**
+ * 依存関係を解決する（存在しない依存先を削除）
+ * @param modules モジュールの配列
+ * @param moduleMap モジュールのマップ
+ */
+function resolveDependencies(
+  modules: ModuleDependency[],
+  moduleMap: Map<string, ModuleDependency>,
+): void {
+  for (const module of modules) {
+    // 依存先のモジュールが存在するか確認し、存在しない場合は依存リストから削除
+    module.dependencies = module.dependencies.filter((depPath) =>
+      moduleMap.has(depPath)
+    );
+  }
+}
+
+/**
+ * モジュール複雑度計算結果を作成する
+ * @param module モジュール依存関係情報
+ * @returns モジュール複雑度計算結果
+ */
+function createModuleComplexityResult(
+  module: ModuleDependency,
+): ModuleComplexityResult {
+  return {
+    path: module.path,
+    fileComplexity: module.fileComplexity?.score || 0,
+    moduleComplexity: module.moduleComplexity || 0,
+    dependencies: module.dependencies,
+    details: module.fileComplexity,
+  };
+}
+
+/**
+ * 複数のモジュールの複雑度を計算する
+ * @param filePaths ファイルパスの配列
+ * @param fileContents ファイル内容のマップ
+ * @param options 複雑度計算オプション
+ * @returns モジュールの複雑度計算結果の配列
+ */
 export function calculateModulesComplexity(
   filePaths: string[],
   fileContents: Map<string, string>,
@@ -495,50 +672,19 @@ export function calculateModulesComplexity(
   const moduleMap = new Map<string, ModuleDependency>();
 
   // 各ファイルの依存関係を解析
-  filePaths.forEach((filePath) => {
+  for (const filePath of filePaths) {
     const content = fileContents.get(filePath);
     if (!content) {
-      return;
+      continue;
     }
 
-    // ソースファイルを作成
-    const sourceFile = ts.createSourceFile(
-      filePath,
-      content,
-      ts.ScriptTarget.Latest,
-      true,
-    );
-
-    // 依存関係を解析
-    const dependencies = analyzeDependencies(sourceFile, filePath);
-
-    // ファイルの複雑度を計算（モジュールファイル複雑度計算を使用）
-    const fileComplexity = calculateModuleFileComplexity(
-      filePath,
-      content,
-      options,
-    );
-
-    // モジュール情報を作成
-    const module: ModuleDependency = {
-      path: filePath,
-      dependencies,
-      fileComplexity,
-      moduleComplexity: fileComplexity.score, // 初期値として設定
-    };
-
-    // モジュール情報を追加
+    const module = createModuleDependency(filePath, content, options);
     modules.push(module);
     moduleMap.set(filePath, module);
-  });
+  }
 
-  // 依存関係の解決（相対パスを絶対パスに変換）
-  modules.forEach((module) => {
-    // 依存先のモジュールが存在するか確認し、存在しない場合は依存リストから削除
-    module.dependencies = module.dependencies.filter((depPath) => {
-      return moduleMap.has(depPath);
-    });
-  });
+  // 依存関係の解決（存在しない依存先を削除）
+  resolveDependencies(modules, moduleMap);
 
   // トポロジカルソートを実行
   const sortedModules = topologicalSort(modules);
@@ -547,13 +693,7 @@ export function calculateModulesComplexity(
   const modulesWithComplexity = calculateModuleComplexity(sortedModules);
 
   // 結果を整形
-  return modulesWithComplexity.map((module) => ({
-    path: module.path,
-    fileComplexity: module.fileComplexity?.score || 0,
-    moduleComplexity: module.moduleComplexity || 0,
-    dependencies: module.dependencies,
-    details: module.fileComplexity,
-  }));
+  return modulesWithComplexity.map(createModuleComplexityResult);
 }
 
 /**
