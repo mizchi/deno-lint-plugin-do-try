@@ -14,7 +14,7 @@ import {
   flattenComplexityResult,
   summarizeComplexityResult,
 } from "../core/mod.ts";
-import { assertEquals } from "https://deno.land/std/testing/asserts.ts";
+import { expect } from "@std/expect";
 import ts from "npm:typescript";
 
 // サンプルコードを読み込む
@@ -29,160 +29,104 @@ const complexCode = await Deno.readTextFile(
 );
 
 // 新しい複雑度計算モジュールのテスト
-Deno.test("新しい複雑度計算モジュールのテスト", () => {
+Deno.test("新しい複雑度計算モジュールのテスト", async (t) => {
   // 各サンプルコードの複雑度を計算
   const simpleResult = calculateCodeComplexity(simpleCode);
   const mediumResult = calculateCodeComplexity(mediumCode);
   const complexResult = calculateCodeComplexity(complexCode);
 
-  // 結果を表示
-  console.log("\n=== 新しい複雑度計算モジュールの分析結果 ===");
+  await t.step("ファイル間の複雑度比較", () => {
+    // simple.tsはmedium.tsより複雑度が低いはず
+    expect(simpleResult.score).toBeLessThan(mediumResult.score);
 
-  console.log("\n--- simple.ts (低複雑度) ---");
-  console.log(`総合スコア: ${simpleResult.score.toFixed(2)}`);
-  console.log(`ノードタイプ: ${simpleResult.nodeType}`);
-  console.log(`子ノード数: ${simpleResult.children.length}`);
+    // medium.tsはcomplex.tsより複雑度が低いはず
+    expect(mediumResult.score).toBeLessThan(complexResult.score);
 
-  // 詳細情報を出力
-  console.log("--- simple.ts の詳細情報 ---");
-  const simpleFlattened = flattenComplexityResult(simpleResult);
-  console.log(`ノード総数: ${simpleFlattened.length}`);
-  console.log("上位5つのノード:");
-  simpleFlattened
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .forEach((node, i) => {
-      console.log(
-        `${i + 1}. ${node.nodeType} (スコア: ${node.score.toFixed(2)})`,
-      );
-      if (node.lineInfo) {
-        console.log(
-          `   行: ${node.lineInfo.startLine}-${node.lineInfo.endLine}`,
-        );
-      }
-    });
+    // simple.tsはcomplex.tsより複雑度が低いはず
+    expect(simpleResult.score).toBeLessThan(complexResult.score);
+  });
 
-  console.log("\n--- medium.ts (中複雑度) ---");
-  console.log(`総合スコア: ${mediumResult.score.toFixed(2)}`);
-  console.log(`ノードタイプ: ${mediumResult.nodeType}`);
-  console.log(`子ノード数: ${mediumResult.children.length}`);
+  await t.step("simple.tsの複雑度分析", () => {
+    const simpleFlattened = flattenComplexityResult(simpleResult);
 
-  // 詳細情報を出力
-  console.log("--- medium.ts の詳細情報 ---");
-  const mediumFlattened = flattenComplexityResult(mediumResult);
-  console.log(`ノード総数: ${mediumFlattened.length}`);
-  console.log("上位5つのノード:");
-  mediumFlattened
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .forEach((node, i) => {
-      console.log(
-        `${i + 1}. ${node.nodeType} (スコア: ${node.score.toFixed(2)})`,
-      );
-      if (node.lineInfo) {
-        console.log(
-          `   行: ${node.lineInfo.startLine}-${node.lineInfo.endLine}`,
-        );
-      }
-    });
+    // ノードタイプの検証
+    expect(simpleResult.nodeType).toBeDefined();
 
-  console.log("\n--- complex.ts (高複雑度) ---");
-  console.log(`総合スコア: ${complexResult.score.toFixed(2)}`);
-  console.log(`ノードタイプ: ${complexResult.nodeType}`);
-  console.log(`子ノード数: ${complexResult.children.length}`);
+    // 子ノード数の検証
+    expect(simpleResult.children.length).toBeGreaterThan(0);
 
-  // 詳細情報を出力
-  console.log("--- complex.ts の詳細情報 ---");
-  const complexFlattened = flattenComplexityResult(complexResult);
-  console.log(`ノード総数: ${complexFlattened.length}`);
-  console.log("上位5つのノード:");
-  complexFlattened
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .forEach((node, i) => {
-      console.log(
-        `${i + 1}. ${node.nodeType} (スコア: ${node.score.toFixed(2)})`,
-      );
-      if (node.lineInfo) {
-        console.log(
-          `   行: ${node.lineInfo.startLine}-${node.lineInfo.endLine}`,
-        );
-      }
-    });
+    // ノード総数の検証
+    expect(simpleFlattened.length).toBeGreaterThan(0);
 
-  // 問題の診断
-  console.log("\n=== 複雑度計算の問題診断 ===");
-  console.log(`simple.ts スコア: ${simpleResult.score.toFixed(2)}`);
-  console.log(`medium.ts スコア: ${mediumResult.score.toFixed(2)}`);
-  console.log(`complex.ts スコア: ${complexResult.score.toFixed(2)}`);
+    // 上位ノードの存在確認
+    const topNodes = simpleFlattened.sort((a, b) => b.score - a.score).slice(
+      0,
+      5,
+    );
+    expect(topNodes.length).toBeGreaterThan(0);
+  });
 
-  if (simpleResult.score > mediumResult.score) {
-    console.log("警告: simple.tsの複雑度がmedium.tsより高くなっています");
-    console.log("期待: simple.ts < medium.ts < complex.ts");
-    console.log("実際: medium.ts < simple.ts < complex.ts");
-  }
+  await t.step("medium.tsの複雑度分析", () => {
+    const mediumFlattened = flattenComplexityResult(mediumResult);
 
-  // 複雑度の順序を検証
-  assertEquals(
-    simpleResult.score < mediumResult.score,
-    true,
-    "simple.tsはmedium.tsより複雑度が低いはず",
-  );
-  assertEquals(
-    mediumResult.score < complexResult.score,
-    true,
-    "medium.tsはcomplex.tsより複雑度が低いはず",
-  );
-  assertEquals(
-    simpleResult.score < complexResult.score,
-    true,
-    "simple.tsはcomplex.tsより複雑度が低いはず",
-  );
+    // ノードタイプの検証
+    expect(mediumResult.nodeType).toBeDefined();
+
+    // 子ノード数の検証
+    expect(mediumResult.children.length).toBeGreaterThan(0);
+
+    // ノード総数の検証
+    expect(mediumFlattened.length).toBeGreaterThan(0);
+  });
+
+  await t.step("complex.tsの複雑度分析", () => {
+    const complexFlattened = flattenComplexityResult(complexResult);
+
+    // ノードタイプの検証
+    expect(complexResult.nodeType).toBeDefined();
+
+    // 子ノード数の検証
+    expect(complexResult.children.length).toBeGreaterThan(0);
+
+    // ノード総数の検証
+    expect(complexFlattened.length).toBeGreaterThan(0);
+  });
 });
 
 // ホットスポット抽出のテスト
-Deno.test("ホットスポット抽出のテスト", () => {
+Deno.test("ホットスポット抽出のテスト", async (t) => {
   // 複雑なコードの複雑度を計算
   const complexResult = calculateCodeComplexity(complexCode);
 
   // ホットスポットを抽出（閾値: 10）
   const hotspots = extractHotspots(complexResult, 10);
 
-  console.log("\n=== ホットスポット抽出結果 ===");
-  console.log(`検出されたホットスポット数: ${hotspots.length}`);
+  await t.step("ホットスポットの検出", () => {
+    // ホットスポットが存在することを検証
+    expect(hotspots.length).toBeGreaterThan(0);
+  });
 
-  // 上位5つのホットスポットを表示
-  hotspots.slice(0, 5).forEach((hotspot, index) => {
-    console.log(
-      `\n${index + 1}. ${hotspot.nodeType} (スコア: ${
-        hotspot.score.toFixed(2)
-      })`,
-    );
-    if (hotspot.lineInfo) {
-      console.log(
-        `   行: ${hotspot.lineInfo.startLine}-${hotspot.lineInfo.endLine}`,
-      );
-    }
-    if (hotspot.metadata) {
-      console.log(`   メタデータ: ${JSON.stringify(hotspot.metadata)}`);
+  await t.step("ホットスポットのスコア検証", () => {
+    if (hotspots.length > 0) {
+      // 最も複雑度の高いホットスポットのスコアが10以上であることを検証
+      expect(hotspots[0].score).toBeGreaterThanOrEqual(10);
     }
   });
 
-  // ホットスポットが存在することを検証
-  assertEquals(hotspots.length > 0, true, "ホットスポットが検出されるはず");
-
-  // 最も複雑度の高いホットスポットのスコアが10以上であることを検証
-  if (hotspots.length > 0) {
-    assertEquals(
-      hotspots[0].score >= 10,
-      true,
-      "最も複雑度の高いホットスポットのスコアは10以上であるはず",
-    );
-  }
+  await t.step("上位ホットスポットの検証", () => {
+    const topHotspots = hotspots.slice(0, 5);
+    if (topHotspots.length > 0) {
+      // 各ホットスポットがnodeTypeを持つことを検証
+      topHotspots.forEach((hotspot) => {
+        expect(hotspot.nodeType).toBeDefined();
+        expect(hotspot.score).toBeGreaterThan(0);
+      });
+    }
+  });
 });
 
 // 個別の式・ステートメント・ブロックの複雑度計算テスト
-Deno.test("個別のノード複雑度計算テスト", () => {
+Deno.test("個別のノード複雑度計算テスト", async (t) => {
   // テスト用のコード
   const testCode = `
     function test(a: number, b: number): number {
@@ -214,92 +158,93 @@ Deno.test("個別のノード複雑度計算テスト", () => {
     (stmt) => ts.isFunctionDeclaration(stmt),
   ) as ts.FunctionDeclaration;
 
-  if (functionDeclaration && functionDeclaration.body) {
-    // 関数本体の複雑度を計算
-    const blockComplexity = calculateBlockComplexity(
-      functionDeclaration.body,
-      context,
-    );
-    console.log("\n=== 関数ブロックの複雑度 ===");
-    console.log(`スコア: ${blockComplexity.score.toFixed(2)}`);
-    console.log(`子ノード数: ${blockComplexity.children.length}`);
+  await t.step("関数ブロックの複雑度", () => {
+    expect(functionDeclaration).toBeDefined();
+    expect(functionDeclaration.body).toBeDefined();
 
-    // if文を取得
-    const ifStatement = functionDeclaration.body.statements.find(
-      (stmt) => ts.isIfStatement(stmt),
-    ) as ts.IfStatement;
-
-    if (ifStatement) {
-      // if文の複雑度を計算
-      const ifComplexity = calculateStatementComplexity(ifStatement, context);
-      console.log("\n=== if文の複雑度 ===");
-      console.log(`スコア: ${ifComplexity.score.toFixed(2)}`);
-      console.log(`子ノード数: ${ifComplexity.children.length}`);
-
-      // 条件式の複雑度を計算
-      const conditionComplexity = calculateNewExpressionComplexity(
-        ifStatement.expression,
+    if (functionDeclaration && functionDeclaration.body) {
+      // 関数本体の複雑度を計算
+      const blockComplexity = calculateBlockComplexity(
+        functionDeclaration.body,
         context,
       );
-      console.log("\n=== 条件式の複雑度 ===");
-      console.log(`スコア: ${conditionComplexity.score.toFixed(2)}`);
-      console.log(`子ノード数: ${conditionComplexity.children.length}`);
-      console.log(`ノードタイプ: ${conditionComplexity.nodeType}`);
 
-      // 条件式の詳細情報
-      console.log("条件式の詳細情報:");
-      console.log(JSON.stringify(conditionComplexity, null, 2));
-
-      // 条件式の子ノード情報
-      if (conditionComplexity.children.length > 0) {
-        console.log("条件式の子ノード:");
-        conditionComplexity.children.forEach((child, i) => {
-          console.log(
-            `子ノード ${i + 1}: ${child.nodeType} (スコア: ${
-              child.score.toFixed(2)
-            })`,
-          );
-        });
-      }
-
-      // 条件式の複雑度が1より大きいことを検証
-      assertEquals(
-        conditionComplexity.score > 1,
-        true,
-        "条件式の複雑度は1より大きいはず",
-      );
+      // 関数ブロックの複雑度検証
+      expect(blockComplexity.score).toBeGreaterThan(0);
+      expect(blockComplexity.children.length).toBeGreaterThan(0);
     }
-  }
+  });
+
+  await t.step("if文の複雑度", () => {
+    if (functionDeclaration && functionDeclaration.body) {
+      // if文を取得
+      const ifStatement = functionDeclaration.body.statements.find(
+        (stmt) => ts.isIfStatement(stmt),
+      ) as ts.IfStatement;
+
+      expect(ifStatement).toBeDefined();
+
+      if (ifStatement) {
+        // if文の複雑度を計算
+        const ifComplexity = calculateStatementComplexity(ifStatement, context);
+
+        // if文の複雑度検証
+        expect(ifComplexity.score).toBeGreaterThanOrEqual(0);
+        expect(ifComplexity.children.length).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  await t.step("条件式の複雑度", () => {
+    if (functionDeclaration && functionDeclaration.body) {
+      const ifStatement = functionDeclaration.body.statements.find(
+        (stmt) => ts.isIfStatement(stmt),
+      ) as ts.IfStatement;
+
+      if (ifStatement) {
+        // 条件式の複雑度を計算
+        const conditionComplexity = calculateNewExpressionComplexity(
+          ifStatement.expression,
+          context,
+        );
+
+        // 条件式の複雑度検証
+        expect(conditionComplexity.score).toBeGreaterThan(1);
+        expect(conditionComplexity.nodeType).toBeDefined();
+
+        // 条件式の子ノード検証
+        if (conditionComplexity.children.length > 0) {
+          conditionComplexity.children.forEach((child) => {
+            expect(child.nodeType).toBeDefined();
+            expect(child.score).toBeGreaterThanOrEqual(0);
+          });
+        }
+      }
+    }
+  });
 });
 
 // 平坦化機能のテスト
-Deno.test("複雑度結果の平坦化テスト", () => {
+Deno.test("複雑度結果の平坦化テスト", async (t) => {
   // シンプルなコードの複雑度を計算
   const simpleResult = calculateCodeComplexity(simpleCode);
 
   // 結果を平坦化
   const flattened = flattenComplexityResult(simpleResult);
 
-  console.log("\n=== 複雑度結果の平坦化 ===");
-  console.log(`平坦化されたノード数: ${flattened.length}`);
+  await t.step("平坦化されたノード数の検証", () => {
+    // 平坦化されたノードの数が元の結果のノード数より多いことを検証
+    expect(flattened.length).toBeGreaterThan(1);
+  });
 
-  // 平坦化されたノードの数が元の結果のノード数より多いことを検証
-  assertEquals(
-    flattened.length > 1,
-    true,
-    "平坦化されたノードの数は1より多いはず",
-  );
-
-  // 最初のノードが元の結果と同じスコアを持つことを検証
-  assertEquals(
-    flattened[0].score,
-    simpleResult.score,
-    "最初のノードは元の結果と同じスコアを持つはず",
-  );
+  await t.step("平坦化されたノードのスコア検証", () => {
+    // 最初のノードが元の結果と同じスコアを持つことを検証
+    expect(flattened[0].score).toBe(simpleResult.score);
+  });
 });
 
 // 複雑度結果の要約テスト
-Deno.test("複雑度結果の要約テスト", () => {
+Deno.test("複雑度結果の要約テスト", async (t) => {
   // 各サンプルコードの複雑度を計算
   const simpleResult = calculateCodeComplexity(simpleCode);
   const mediumResult = calculateCodeComplexity(mediumCode);
@@ -310,68 +255,35 @@ Deno.test("複雑度結果の要約テスト", () => {
   const mediumSummary = summarizeComplexityResult(mediumResult);
   const complexSummary = summarizeComplexityResult(complexResult);
 
-  console.log("\n=== 複雑度結果の要約 ===");
+  await t.step("simple.tsの要約検証", () => {
+    // 要約の総合スコアは元の結果と同じはず
+    expect(simpleSummary.totalScore).toBe(simpleResult.score);
 
-  console.log("\n--- simple.ts の要約 ---");
-  console.log(`総合スコア: ${simpleSummary.totalScore.toFixed(2)}`);
-  console.log(`ノード数: ${simpleSummary.nodeCount}`);
-  console.log(`最大深度: ${simpleSummary.maxDepth}`);
-  console.log(`平均スコア: ${simpleSummary.averageScore.toFixed(2)}`);
-  console.log("ホットスポット:");
-  simpleSummary.hotspots.forEach((spot, i) => {
-    console.log(
-      `${i + 1}. ${spot.nodeType} (スコア: ${spot.score.toFixed(2)})`,
-    );
-    if (spot.lineInfo) {
-      console.log(`   行: ${spot.lineInfo.startLine}-${spot.lineInfo.endLine}`);
+    // ノード数は1より多いはず
+    expect(simpleSummary.nodeCount).toBeGreaterThan(1);
+
+    // 最大深度は0より大きいはず
+    expect(simpleSummary.maxDepth).toBeGreaterThan(0);
+
+    // ホットスポットが存在するはず
+    expect(simpleSummary.hotspots.length).toBeGreaterThan(0);
+
+    // ホットスポットの検証
+    if (simpleSummary.hotspots.length > 0) {
+      simpleSummary.hotspots.forEach((spot) => {
+        expect(spot.nodeType).toBeDefined();
+        expect(spot.score).toBeGreaterThan(0);
+      });
     }
   });
 
-  console.log("\n--- medium.ts の要約 ---");
-  console.log(`総合スコア: ${mediumSummary.totalScore.toFixed(2)}`);
-  console.log(`ノード数: ${mediumSummary.nodeCount}`);
-  console.log(`最大深度: ${mediumSummary.maxDepth}`);
-  console.log(`平均スコア: ${mediumSummary.averageScore.toFixed(2)}`);
+  await t.step("複雑度の順序検証", () => {
+    // simple.tsはmedium.tsより複雑度が低いはず
+    expect(simpleSummary.totalScore).toBeLessThan(mediumSummary.totalScore);
 
-  console.log("\n--- complex.ts の要約 ---");
-  console.log(`総合スコア: ${complexSummary.totalScore.toFixed(2)}`);
-  console.log(`ノード数: ${complexSummary.nodeCount}`);
-  console.log(`最大深度: ${complexSummary.maxDepth}`);
-  console.log(`平均スコア: ${complexSummary.averageScore.toFixed(2)}`);
-
-  // 要約結果の検証
-  assertEquals(
-    simpleSummary.totalScore,
-    simpleResult.score,
-    "要約の総合スコアは元の結果と同じはず",
-  );
-  assertEquals(
-    simpleSummary.nodeCount > 1,
-    true,
-    "ノード数は1より多いはず",
-  );
-  assertEquals(
-    simpleSummary.maxDepth > 0,
-    true,
-    "最大深度は0より大きいはず",
-  );
-  assertEquals(
-    simpleSummary.hotspots.length > 0,
-    true,
-    "ホットスポットが存在するはず",
-  );
-
-  // 複雑度の順序を検証
-  assertEquals(
-    simpleSummary.totalScore < mediumSummary.totalScore,
-    true,
-    "simple.tsはmedium.tsより複雑度が低いはず",
-  );
-  assertEquals(
-    mediumSummary.totalScore < complexSummary.totalScore,
-    true,
-    "medium.tsはcomplex.tsより複雑度が低いはず",
-  );
+    // medium.tsはcomplex.tsより複雑度が低いはず
+    expect(mediumSummary.totalScore).toBeLessThan(complexSummary.totalScore);
+  });
 });
 
 // メイン関数（直接実行された場合）
