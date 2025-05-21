@@ -7,6 +7,9 @@
     "./strict-module": "./plugins/strict_module_plugin.ts",
     "./rules": "./rules/mod.ts"
   },
+  "tasks": {
+    "test-lint": "deno lint ./examples/do_try_example.ts --config=examples/deno-test-lint.json"
+  },
   "test": {
     "include": ["./rules/**/*.ts"],
     "files": ["./quality/test/**/*.test.ts"]
