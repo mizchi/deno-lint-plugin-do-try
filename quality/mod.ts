@@ -25,17 +25,10 @@ export {
 
 // コア機能をエクスポート
 export {
-  // 複雑度分析
+  // 複雑度分析 - calculateNodeComplexity をメインのファサード関数として使用
   analyzeCodeComplexity,
-  calculateBlockComplexity,
-  calculateCodeComplexity,
   calculateComplexityScore,
-  calculateFileComplexity,
-  calculateModuleComplexity,
-  calculateModuleFileComplexity,
-  calculateModulesComplexity,
-  calculateNewExpressionComplexity,
-  calculateStatementComplexity,
+  calculateNodeComplexity,
   // 比較機能
   compareCodeComplexity,
   // ユーティリティ

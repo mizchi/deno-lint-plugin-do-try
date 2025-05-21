@@ -28,30 +28,16 @@ export { DEFAULT_COMPLEXITY_OPTIONS } from "./complexity/common.ts";
 import { analyzeCodeComplexity, calculateComplexityScore } from "./metrics.ts";
 export { analyzeCodeComplexity, calculateComplexityScore };
 
-// 複雑度計算ファサード
+// 複雑度計算ファサード - calculateNodeComplexity をメインのエントリーポイントとして使用
 import {
-  calculateBlockComplexity,
-  calculateCodeComplexity,
-  calculateFileComplexity,
-  calculateNewExpressionComplexity,
-  calculateStatementComplexity,
+  calculateNodeComplexity,
   createComplexityContext,
 } from "./complexity/mod.ts";
 
-export {
-  calculateBlockComplexity,
-  calculateCodeComplexity,
-  calculateFileComplexity,
-  calculateNewExpressionComplexity,
-  calculateStatementComplexity,
-  createComplexityContext,
-};
+export { calculateNodeComplexity, createComplexityContext };
 
-// モジュール分析ファサード
+// モジュール分析とユーティリティファサード
 import {
-  calculateModuleComplexity,
-  calculateModuleFileComplexity,
-  calculateModulesComplexity,
   extractHotspots,
   flattenComplexityResult,
   summarizeComplexityResult,
@@ -59,9 +45,6 @@ import {
 } from "./complexity/mod.ts";
 
 export {
-  calculateModuleComplexity,
-  calculateModuleFileComplexity,
-  calculateModulesComplexity,
   extractHotspots,
   flattenComplexityResult,
   summarizeComplexityResult,

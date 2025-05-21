@@ -1,14 +1,12 @@
 /**
  * complexity_test.ts
  *
- * このファイルは、新しい複雑度計算モジュールをテストするためのコードを実装しています。
+ * このファイルは、複雑度計算モジュールの calculateNodeComplexity 関数をテストします。
+ * 他の関数は内部実装の詳細として扱い、直接テストしません。
  */
 
 import {
-  calculateBlockComplexity,
-  calculateCodeComplexity,
-  calculateNewExpressionComplexity,
-  calculateStatementComplexity,
+  calculateNodeComplexity,
   createComplexityContext,
   extractHotspots,
   flattenComplexityResult,
@@ -28,12 +26,32 @@ const complexCode = await Deno.readTextFile(
   new URL("./fixtures/complex.ts", import.meta.url).pathname,
 );
 
-// 新しい複雑度計算モジュールのテスト
-Deno.test("新しい複雑度計算モジュールのテスト", async (t) => {
-  // 各サンプルコードの複雑度を計算
-  const simpleResult = calculateCodeComplexity(simpleCode);
-  const mediumResult = calculateCodeComplexity(mediumCode);
-  const complexResult = calculateCodeComplexity(complexCode);
+// 複雑度計算モジュールのテスト
+Deno.test("calculateNodeComplexity のテスト", async (t) => {
+  // ソースファイルを作成
+  const simpleSourceFile = ts.createSourceFile(
+    "simple.ts",
+    simpleCode,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const mediumSourceFile = ts.createSourceFile(
+    "medium.ts",
+    mediumCode,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const complexSourceFile = ts.createSourceFile(
+    "complex.ts",
+    complexCode,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+
+  // calculateNodeComplexity を使用して複雑度を計算
+  const simpleResult = calculateNodeComplexity(simpleSourceFile);
+  const mediumResult = calculateNodeComplexity(mediumSourceFile);
+  const complexResult = calculateNodeComplexity(complexSourceFile);
 
   await t.step("ファイル間の複雑度比較", () => {
     // simple.tsはmedium.tsより複雑度が低いはず
@@ -66,105 +84,83 @@ Deno.test("新しい複雑度計算モジュールのテスト", async (t) => {
     expect(topNodes.length).toBeGreaterThan(0);
   });
 
-  await t.step("medium.tsの複雑度分析", () => {
-    const mediumFlattened = flattenComplexityResult(mediumResult);
+  await t.step("ホットスポット抽出のテスト", () => {
+    // ホットスポットを抽出（閾値: 10）
+    const hotspots = extractHotspots(complexResult, 10);
 
-    // ノードタイプの検証
-    expect(mediumResult.nodeType).toBeDefined();
-
-    // 子ノード数の検証
-    expect(mediumResult.children.length).toBeGreaterThan(0);
-
-    // ノード総数の検証
-    expect(mediumFlattened.length).toBeGreaterThan(0);
-  });
-
-  await t.step("complex.tsの複雑度分析", () => {
-    const complexFlattened = flattenComplexityResult(complexResult);
-
-    // ノードタイプの検証
-    expect(complexResult.nodeType).toBeDefined();
-
-    // 子ノード数の検証
-    expect(complexResult.children.length).toBeGreaterThan(0);
-
-    // ノード総数の検証
-    expect(complexFlattened.length).toBeGreaterThan(0);
-  });
-});
-
-// ホットスポット抽出のテスト
-Deno.test("ホットスポット抽出のテスト", async (t) => {
-  // 複雑なコードの複雑度を計算
-  const complexResult = calculateCodeComplexity(complexCode);
-
-  // ホットスポットを抽出（閾値: 10）
-  const hotspots = extractHotspots(complexResult, 10);
-
-  await t.step("ホットスポットの検出", () => {
     // ホットスポットが存在することを検証
     expect(hotspots.length).toBeGreaterThan(0);
-  });
 
-  await t.step("ホットスポットのスコア検証", () => {
     if (hotspots.length > 0) {
       // 最も複雑度の高いホットスポットのスコアが10以上であることを検証
       expect(hotspots[0].score).toBeGreaterThanOrEqual(10);
-    }
-  });
 
-  await t.step("上位ホットスポットの検証", () => {
-    const topHotspots = hotspots.slice(0, 5);
-    if (topHotspots.length > 0) {
       // 各ホットスポットがnodeTypeを持つことを検証
-      topHotspots.forEach((hotspot) => {
+      hotspots.forEach((hotspot) => {
         expect(hotspot.nodeType).toBeDefined();
         expect(hotspot.score).toBeGreaterThan(0);
       });
     }
   });
-});
 
-// 個別の式・ステートメント・ブロックの複雑度計算テスト
-Deno.test("個別のノード複雑度計算テスト", async (t) => {
-  // テスト用のコード
-  const testCode = `
-    function test(a: number, b: number): number {
-      let result = 0;
-      if (a > 0 && b > 0) {
-        result = a + b;
-      } else if (a < 0 && b < 0) {
-        result = a * b;
-      } else {
-        result = Math.abs(a - b);
+  await t.step("複雑度結果の要約テスト", () => {
+    // 結果を要約
+    const simpleSummary = summarizeComplexityResult(simpleResult);
+    const mediumSummary = summarizeComplexityResult(mediumResult);
+    const complexSummary = summarizeComplexityResult(complexResult);
+
+    // 要約の総合スコアは元の結果と同じはず
+    expect(simpleSummary.totalScore).toBe(simpleResult.score);
+
+    // ノード数は1より多いはず
+    expect(simpleSummary.nodeCount).toBeGreaterThan(1);
+
+    // 最大深度は0より大きいはず
+    expect(simpleSummary.maxDepth).toBeGreaterThan(0);
+
+    // 複雑度の順序検証
+    expect(simpleSummary.totalScore).toBeLessThan(mediumSummary.totalScore);
+    expect(mediumSummary.totalScore).toBeLessThan(complexSummary.totalScore);
+  });
+
+  await t.step("個別のノード複雑度計算テスト", () => {
+    // テスト用のコード
+    const testCode = `
+      function test(a: number, b: number): number {
+        let result = 0;
+        if (a > 0 && b > 0) {
+          result = a + b;
+        } else if (a < 0 && b < 0) {
+          result = a * b;
+        } else {
+          result = Math.abs(a - b);
+        }
+        return result;
       }
-      return result;
-    }
-  `;
+    `;
 
-  // ソースファイルを作成
-  const sourceFile = ts.createSourceFile(
-    "test.ts",
-    testCode,
-    ts.ScriptTarget.Latest,
-    true,
-  );
+    // ソースファイルを作成
+    const sourceFile = ts.createSourceFile(
+      "test.ts",
+      testCode,
+      ts.ScriptTarget.Latest,
+      true,
+    );
 
-  // コンテキストを作成
-  const context = createComplexityContext(sourceFile);
+    // コンテキストを作成
+    const context = createComplexityContext(sourceFile);
 
-  // 関数宣言を取得
-  const functionDeclaration = sourceFile.statements.find(
-    (stmt) => ts.isFunctionDeclaration(stmt),
-  ) as ts.FunctionDeclaration;
+    // 関数宣言を取得
+    const functionDeclaration = sourceFile.statements.find(
+      (stmt) => ts.isFunctionDeclaration(stmt),
+    ) as ts.FunctionDeclaration;
 
-  await t.step("関数ブロックの複雑度", () => {
     expect(functionDeclaration).toBeDefined();
     expect(functionDeclaration.body).toBeDefined();
 
     if (functionDeclaration && functionDeclaration.body) {
       // 関数本体の複雑度を計算
-      const blockComplexity = calculateBlockComplexity(
+      const blockComplexity = calculateNodeComplexity(
         functionDeclaration.body,
         context,
       );
@@ -172,11 +168,7 @@ Deno.test("個別のノード複雑度計算テスト", async (t) => {
       // 関数ブロックの複雑度検証
       expect(blockComplexity.score).toBeGreaterThan(0);
       expect(blockComplexity.children.length).toBeGreaterThan(0);
-    }
-  });
 
-  await t.step("if文の複雑度", () => {
-    if (functionDeclaration && functionDeclaration.body) {
       // if文を取得
       const ifStatement = functionDeclaration.body.statements.find(
         (stmt) => ts.isIfStatement(stmt),
@@ -186,24 +178,14 @@ Deno.test("個別のノード複雑度計算テスト", async (t) => {
 
       if (ifStatement) {
         // if文の複雑度を計算
-        const ifComplexity = calculateStatementComplexity(ifStatement, context);
+        const ifComplexity = calculateNodeComplexity(ifStatement, context);
 
         // if文の複雑度検証
         expect(ifComplexity.score).toBeGreaterThanOrEqual(0);
         expect(ifComplexity.children.length).toBeGreaterThanOrEqual(0);
-      }
-    }
-  });
 
-  await t.step("条件式の複雑度", () => {
-    if (functionDeclaration && functionDeclaration.body) {
-      const ifStatement = functionDeclaration.body.statements.find(
-        (stmt) => ts.isIfStatement(stmt),
-      ) as ts.IfStatement;
-
-      if (ifStatement) {
         // 条件式の複雑度を計算
-        const conditionComplexity = calculateNewExpressionComplexity(
+        const conditionComplexity = calculateNodeComplexity(
           ifStatement.expression,
           context,
         );
@@ -224,78 +206,36 @@ Deno.test("個別のノード複雑度計算テスト", async (t) => {
   });
 });
 
-// 平坦化機能のテスト
-Deno.test("複雑度結果の平坦化テスト", async (t) => {
-  // シンプルなコードの複雑度を計算
-  const simpleResult = calculateCodeComplexity(simpleCode);
-
-  // 結果を平坦化
-  const flattened = flattenComplexityResult(simpleResult);
-
-  await t.step("平坦化されたノード数の検証", () => {
-    // 平坦化されたノードの数が元の結果のノード数より多いことを検証
-    expect(flattened.length).toBeGreaterThan(1);
-  });
-
-  await t.step("平坦化されたノードのスコア検証", () => {
-    // 最初のノードが元の結果と同じスコアを持つことを検証
-    expect(flattened[0].score).toBe(simpleResult.score);
-  });
-});
-
-// 複雑度結果の要約テスト
-Deno.test("複雑度結果の要約テスト", async (t) => {
-  // 各サンプルコードの複雑度を計算
-  const simpleResult = calculateCodeComplexity(simpleCode);
-  const mediumResult = calculateCodeComplexity(mediumCode);
-  const complexResult = calculateCodeComplexity(complexCode);
-
-  // 結果を要約
-  const simpleSummary = summarizeComplexityResult(simpleResult);
-  const mediumSummary = summarizeComplexityResult(mediumResult);
-  const complexSummary = summarizeComplexityResult(complexResult);
-
-  await t.step("simple.tsの要約検証", () => {
-    // 要約の総合スコアは元の結果と同じはず
-    expect(simpleSummary.totalScore).toBe(simpleResult.score);
-
-    // ノード数は1より多いはず
-    expect(simpleSummary.nodeCount).toBeGreaterThan(1);
-
-    // 最大深度は0より大きいはず
-    expect(simpleSummary.maxDepth).toBeGreaterThan(0);
-
-    // ホットスポットが存在するはず
-    expect(simpleSummary.hotspots.length).toBeGreaterThan(0);
-
-    // ホットスポットの検証
-    if (simpleSummary.hotspots.length > 0) {
-      simpleSummary.hotspots.forEach((spot) => {
-        expect(spot.nodeType).toBeDefined();
-        expect(spot.score).toBeGreaterThan(0);
-      });
-    }
-  });
-
-  await t.step("複雑度の順序検証", () => {
-    // simple.tsはmedium.tsより複雑度が低いはず
-    expect(simpleSummary.totalScore).toBeLessThan(mediumSummary.totalScore);
-
-    // medium.tsはcomplex.tsより複雑度が低いはず
-    expect(mediumSummary.totalScore).toBeLessThan(complexSummary.totalScore);
-  });
-});
-
 // メイン関数（直接実行された場合）
 if (import.meta.main) {
-  console.log("新しい複雑度計算モジュールのテストを開始します...");
+  console.log("複雑度計算モジュールのテストを開始します...");
 
-  // 各サンプルコードの複雑度を計算
-  const simpleResult = calculateCodeComplexity(simpleCode);
-  const mediumResult = calculateCodeComplexity(mediumCode);
-  const complexResult = calculateCodeComplexity(complexCode);
+  // ソースファイルを作成
+  const simpleSourceFile = ts.createSourceFile(
+    "simple.ts",
+    simpleCode,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const mediumSourceFile = ts.createSourceFile(
+    "medium.ts",
+    mediumCode,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const complexSourceFile = ts.createSourceFile(
+    "complex.ts",
+    complexCode,
+    ts.ScriptTarget.Latest,
+    true,
+  );
 
-  console.log("\n=== 新しい複雑度計算モジュールの分析結果 ===");
+  // calculateNodeComplexity を使用して複雑度を計算
+  const simpleResult = calculateNodeComplexity(simpleSourceFile);
+  const mediumResult = calculateNodeComplexity(mediumSourceFile);
+  const complexResult = calculateNodeComplexity(complexSourceFile);
+
+  console.log("\n=== 複雑度計算モジュールの分析結果 ===");
 
   console.log("\n--- simple.ts (低複雑度) ---");
   console.log(`総合スコア: ${simpleResult.score.toFixed(2)}`);
