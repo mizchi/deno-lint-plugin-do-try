@@ -8,10 +8,10 @@
 // TypeScriptコンパイラを使用
 import ts from "npm:typescript";
 import {
-  CodeComplexityMetrics,
-  ComplexityWeights,
+  type CodeComplexityMetrics,
+  type ComplexityWeights,
   DEFAULT_COMPLEXITY_WEIGHTS,
-  VariableMutationMap,
+  type VariableMutationMap,
 } from "./types.ts";
 import {
   createSourceFile,
@@ -124,13 +124,6 @@ function calculateExpressionComplexity(
   }
 
   return complexity;
-}
-
-// 内部関数: 条件式の複雑さを計算する
-function calculateConditionalComplexity(
-  expression: ts.Expression,
-): number {
-  return calculateExpressionComplexity(expression);
 }
 
 /**

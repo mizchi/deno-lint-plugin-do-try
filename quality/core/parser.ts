@@ -6,7 +6,7 @@
 
 // TypeScriptコンパイラを使用
 import ts from "npm:typescript";
-import { VariableMutationMap } from "./types.ts";
+import type { VariableMutationMap } from "./types.ts";
 
 /**
  * TypeScriptのソースファイルを作成する

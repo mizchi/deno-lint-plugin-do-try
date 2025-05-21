@@ -6,9 +6,8 @@
  */
 
 import {
-  CodeComplexityMetrics,
-  ComplexityComparisonResult,
-  ComplexityWeights,
+  type ComplexityComparisonResult,
+  type ComplexityWeights,
   DEFAULT_COMPLEXITY_WEIGHTS,
 } from "./types.ts";
 import { analyzeCodeComplexity, calculateComplexityScore } from "./metrics.ts";

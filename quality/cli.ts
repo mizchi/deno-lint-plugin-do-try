@@ -23,13 +23,7 @@
 import {
   analyzeCodeComplexity,
   calculateComplexityScore,
-  calculateNodeComplexity,
   compareCodeComplexity,
-  generateComparisonReport,
-  generateDetailedComplexityReport,
-  generateHotspotReport,
-  generateMetricsReport,
-  generateModuleComplexityReport,
 } from "./mod.ts";
 
 /**
@@ -71,65 +65,6 @@ async function readFile(filePath: string): Promise<string> {
     console.error(`エラー: ファイル '${filePath}' を読み込めませんでした`);
     console.error(error);
     Deno.exit(1);
-  }
-}
-
-/**
- * 単一ファイルの複雑度を分析する
- * @param filePath ファイルパス
- */
-async function analyzeFile(filePath: string): Promise<void> {
-  try {
-    const code = await readFile(filePath);
-    const metrics = analyzeCodeComplexity(code);
-    const score = calculateComplexityScore(metrics);
-
-    // CWDからの相対パスを取得
-    const relativePath = Deno.cwd() === "/"
-      ? filePath
-      : filePath.startsWith(Deno.cwd())
-      ? filePath.slice(Deno.cwd().length + 1)
-      : filePath;
-
-    console.log(`\n=== ${relativePath} の複雑度分析結果 ===\n`);
-    console.log(`総合スコア: ${score.toFixed(2)}`);
-    console.log("\n詳細指標:");
-    console.log(
-      `- 変数の変更可能性: ${metrics.variableMutabilityScore.toFixed(2)}`,
-    );
-    console.log(
-      `- スコープの複雑さ: ${metrics.scopeComplexityScore.toFixed(2)}`,
-    );
-    console.log(`- 代入操作: ${metrics.assignmentScore.toFixed(2)}`);
-    console.log(
-      `- 関数の複雑さ: ${metrics.functionComplexityScore.toFixed(2)}`,
-    );
-    console.log(
-      `- 条件分岐の複雑さ: ${metrics.conditionalComplexityScore.toFixed(2)}`,
-    );
-    console.log(
-      `- 例外処理の複雑さ: ${metrics.exceptionHandlingScore.toFixed(2)}`,
-    );
-
-    if (metrics.hotspots.length > 0) {
-      console.log("\n主要なホットスポット（上位3件）:");
-      metrics.hotspots.slice(0, 3).forEach((hotspot, index) => {
-        console.log(
-          `${index + 1}. ${hotspot.nodeType} (行: ${hotspot.line}): スコア ${
-            hotspot.score.toFixed(2)
-          }`,
-        );
-        console.log(`   理由: ${hotspot.reason}`);
-      });
-    } else {
-      console.log("\nホットスポットはありません");
-    }
-    return;
-  } catch (error) {
-    console.error(
-      `エラー: ファイル '${filePath}' の分析中にエラーが発生しました`,
-    );
-    console.error(error);
   }
 }
 
@@ -192,23 +127,6 @@ async function analyzeFileSimple(
     );
     console.error(error);
     Deno.exit(1);
-  }
-}
-
-/**
- * 複数ファイルの複雑度を詳細な形式で表示する
- * @param filePaths ファイルパスの配列
- */
-async function analyzeFiles(filePaths: string[]): Promise<void> {
-  if (filePaths.length === 0) {
-    console.error("エラー: 分析するファイルが指定されていません");
-    return;
-  }
-
-  console.log(`${filePaths.length}個のファイルを分析します...\n`);
-
-  for (const filePath of filePaths) {
-    await analyzeFile(filePath);
   }
 }
 
@@ -297,72 +215,6 @@ async function compareFiles(
   } catch (error) {
     console.error(`エラー: ファイルの比較中にエラーが発生しました`);
     console.error(error);
-  }
-}
-
-/**
- * 詳細レポートを生成する
- * @param filePath ファイルパス
- */
-async function generateReport(filePath: string): Promise<void> {
-  try {
-    const code = await readFile(filePath);
-    const report = generateDetailedComplexityReport(code);
-
-    // CWDからの相対パスを取得
-    const relativePath = Deno.cwd() === "/"
-      ? filePath
-      : filePath.startsWith(Deno.cwd())
-      ? filePath.slice(Deno.cwd().length + 1)
-      : filePath;
-
-    console.log(`\n=== ${relativePath} の詳細レポート ===\n`);
-    console.log(`総合スコア: ${report.score.toFixed(2)}`);
-
-    console.log("\n詳細指標の内訳:");
-    for (const [metric, data] of Object.entries(report.breakdown)) {
-      console.log(
-        `- ${metric}: ${data.value.toFixed(2)} (重み付けスコア: ${
-          data.weightedScore.toFixed(2)
-        })`,
-      );
-    }
-
-    if (report.hotspots.length > 0) {
-      console.log("\nホットスポット:");
-      report.hotspots.forEach((hotspot, index) => {
-        console.log(
-          `${index + 1}. ${hotspot.nodeType} (行: ${hotspot.line}): スコア ${
-            hotspot.score.toFixed(2)
-          }`,
-        );
-        console.log(`   理由: ${hotspot.reason}`);
-      });
-    } else {
-      console.log("\nホットスポットはありません");
-    }
-  } catch (error) {
-    console.error(
-      `エラー: ファイル '${filePath}' のレポート生成中にエラーが発生しました`,
-    );
-    console.error(error);
-  }
-}
-
-/**
- * 複数ファイルの詳細レポートを生成する
- * @param filePaths ファイルパスの配列
- */
-async function generateReports(filePaths: string[]): Promise<void> {
-  if (filePaths.length === 0) {
-    console.error("エラー: レポートを生成するファイルが指定されていません");
-    return;
-  }
-
-  console.log(`${filePaths.length}個のファイルのレポートを生成します...\n`);
-
-  for (const filePath of filePaths) {
-    await generateReport(filePath);
   }
 }
 
@@ -461,7 +313,7 @@ function parseArgs(args: string[]): {
   hotspot: boolean;
 } {
   let command: string | null = null;
-  let filePaths: string[] = [];
+  const filePaths: string[] = [];
   let hotspot = false;
 
   // 引数を順番に処理

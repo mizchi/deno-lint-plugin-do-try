@@ -7,13 +7,22 @@
 
 import {
   calculateNodeComplexity,
+  type ComplexityResult,
   createComplexityContext,
   extractHotspots,
   flattenComplexityResult,
-  summarizeComplexityResult,
 } from "../core/mod.ts";
+
+// flattenComplexityResult の戻り値の型を定義
+type FlattenedComplexityResult = {
+  nodeType: string;
+  score: number;
+  lineInfo?: { startLine: number; endLine: number };
+  metadata?: Record<string, unknown>;
+};
 import { expect } from "@std/expect";
 import ts from "npm:typescript";
+import { summarizeComplexityResult } from "../core/complexity/mod.ts";
 
 // サンプルコードを読み込む
 const simpleCode = await Deno.readTextFile(
@@ -77,7 +86,10 @@ Deno.test("calculateNodeComplexity のテスト", async (t) => {
     expect(simpleFlattened.length).toBeGreaterThan(0);
 
     // 上位ノードの存在確認
-    const topNodes = simpleFlattened.sort((a, b) => b.score - a.score).slice(
+    const topNodes = simpleFlattened.sort((
+      a: FlattenedComplexityResult,
+      b: FlattenedComplexityResult,
+    ) => b.score - a.score).slice(
       0,
       5,
     );
@@ -96,7 +108,7 @@ Deno.test("calculateNodeComplexity のテスト", async (t) => {
       expect(hotspots[0].score).toBeGreaterThanOrEqual(10);
 
       // 各ホットスポットがnodeTypeを持つことを検証
-      hotspots.forEach((hotspot) => {
+      hotspots.forEach((hotspot: ComplexityResult) => {
         expect(hotspot.nodeType).toBeDefined();
         expect(hotspot.score).toBeGreaterThan(0);
       });

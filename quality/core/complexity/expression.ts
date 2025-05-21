@@ -7,8 +7,8 @@
 // TypeScriptコンパイラを使用
 import ts from "npm:typescript";
 import {
-  ComplexityContext,
-  ComplexityResult,
+  type ComplexityContext,
+  type ComplexityResult,
   createTruncatedResult,
   getNodeLineInfo,
 } from "./common.ts";
@@ -186,7 +186,7 @@ function getBinaryOperatorComplexity(kind: ts.SyntaxKind): number {
  */
 function selectExpressionCalculator(
   expression: ts.Expression,
-  context: ComplexityContext,
+  _context: ComplexityContext,
 ): {
   calculator: (expr: any, ctx: ComplexityContext) => ComplexityResult;
   type: string;

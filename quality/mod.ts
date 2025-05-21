@@ -32,16 +32,9 @@ export {
   // 比較機能
   compareCodeComplexity,
   // ユーティリティ
-  createComplexityContext,
-  extractHotspots,
-  flattenComplexityResult,
   // レポート生成
   generateComparisonReport,
   generateDetailedComplexityReport,
   generateHotspotReport,
   generateMetricsReport,
-  generateModuleComplexityReport,
-  // 結果処理
-  summarizeComplexityResult,
-  topologicalSort,
 } from "./core/mod.ts";

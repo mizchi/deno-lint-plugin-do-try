@@ -4,7 +4,7 @@
  * このファイルでは、複雑度計算結果を処理するためのユーティリティ関数を提供します。
  */
 
-import { ComplexityResult } from "./common.ts";
+import type { ComplexityResult } from "./common.ts";
 
 /**
  * 複雑度結果からホットスポットを抽出する

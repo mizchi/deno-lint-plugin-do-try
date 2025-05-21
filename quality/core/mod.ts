@@ -16,9 +16,13 @@ export type {
   ComplexityContext,
   ComplexityOptions,
   ComplexityResult,
+} from "./complexity/common.ts";
+
+// 追加の型定義を直接インポート
+export type {
   ModuleComplexityResult,
   ModuleDependency,
-} from "./complexity/mod.ts";
+} from "./complexity/module.ts";
 
 // 定数をエクスポート
 export { DEFAULT_COMPLEXITY_WEIGHTS } from "./types.ts";
@@ -29,27 +33,18 @@ import { analyzeCodeComplexity, calculateComplexityScore } from "./metrics.ts";
 export { analyzeCodeComplexity, calculateComplexityScore };
 
 // 複雑度計算ファサード - calculateNodeComplexity をメインのエントリーポイントとして使用
-import {
-  calculateNodeComplexity,
-  createComplexityContext,
-} from "./complexity/mod.ts";
+import { calculateNodeComplexity } from "./complexity/mod.ts";
 
-export { calculateNodeComplexity, createComplexityContext };
+export { calculateNodeComplexity };
 
-// モジュール分析とユーティリティファサード
-import {
-  extractHotspots,
-  flattenComplexityResult,
-  summarizeComplexityResult,
-  topologicalSort,
-} from "./complexity/mod.ts";
+// モジュール分析とユーティリティファサード - 直接インポート
+// import {
+//   extractHotspots,
+//   flattenComplexityResult,
+//   summarizeComplexityResult,
+// } from "./complexity/utils.ts";
 
-export {
-  extractHotspots,
-  flattenComplexityResult,
-  summarizeComplexityResult,
-  topologicalSort,
-};
+// export { extractHotspots, flattenComplexityResult, summarizeComplexityResult };
 
 // レポート生成ファサード
 import {
@@ -58,13 +53,13 @@ import {
   generateMetricsReport,
 } from "./reporter.ts";
 
-import { generateModuleComplexityReport } from "./complexity/mod.ts";
+// import { generateModuleComplexityReport } from "./complexity/module.ts";
 
 export {
   generateDetailedComplexityReport,
   generateHotspotReport,
   generateMetricsReport,
-  generateModuleComplexityReport,
+  // generateModuleComplexityReport,
 };
 
 // 比較機能ファサード
@@ -74,3 +69,9 @@ import {
 } from "./comparator.ts";
 
 export { compareCodeComplexity, generateComparisonReport };
+
+export {
+  createComplexityContext,
+  extractHotspots,
+  flattenComplexityResult,
+} from "./complexity.ts";

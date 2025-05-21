@@ -55,6 +55,7 @@ async function doFetchUserData(userId: string): Promise<UserData> {
   };
 }
 
+// deno-lint-disable-file do-try/throw-needs-do-prefix
 function validateUserData(data: UserData): void {
   // ネストされた条件分岐
   if (!data.name || data.name.trim() === "") {

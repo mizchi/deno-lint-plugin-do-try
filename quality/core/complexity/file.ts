@@ -7,9 +7,8 @@
 // TypeScriptコンパイラを使用
 import ts from "npm:typescript";
 import {
-  ComplexityContext,
-  ComplexityOptions,
-  ComplexityResult,
+  type ComplexityOptions,
+  type ComplexityResult,
   createComplexityContext,
   DEFAULT_COMPLEXITY_OPTIONS,
 } from "./common.ts";

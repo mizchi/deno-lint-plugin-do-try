@@ -139,7 +139,6 @@ export abstract class DataProcessor<T, R> {
       this.metrics.recordTransformTime(transformer.name, endTime - startTime);
       return result;
     } catch (error) {
-      const endTime = Date.now();
       this.metrics.recordTransformError(transformer.name);
       this.logger.error(`Transform error in ${transformer.name}`, { error });
       throw error;
@@ -494,7 +493,7 @@ export class RecordValidator implements Validator<DataRecord> {
       }
 
       class GenericErrorHandler implements ErrorHandler {
-        canHandle(error: Error): boolean {
+        canHandle(_error: Error): boolean {
           return true; // フォールバックハンドラー
         }
 
@@ -511,7 +510,7 @@ export class RecordValidator implements Validator<DataRecord> {
       }
 
       // 具体的なデータプロセッサの実装
-      class RecordProcessor extends DataProcessor<DataRecord, DataRecord> {
+      class _RecordProcessor extends DataProcessor<DataRecord, DataRecord> {
         private cache: Map<string, { record: DataRecord; timestamp: number }> =
           new Map();
         private cacheTimeoutMs: number;

@@ -7,8 +7,8 @@
 // TypeScriptコンパイラを使用
 import ts from "npm:typescript";
 import {
-  ComplexityContext,
-  ComplexityResult,
+  type ComplexityContext,
+  type ComplexityResult,
   createTruncatedResult,
   getNodeLineInfo,
 } from "./common.ts";

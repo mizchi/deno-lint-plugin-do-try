@@ -28,7 +28,7 @@ const compactComplexCode = await Deno.readTextFile(
 );
 
 // 各サンプルコードの複雑度を分析するテスト
-Deno.test("サンプルコードの複雑度分析", async () => {
+Deno.test("サンプルコードの複雑度分析", () => {
   // 各サンプルコードの複雑度を分析
   const simpleMetrics = analyzeCodeComplexity(simpleCode);
   const mediumMetrics = analyzeCodeComplexity(mediumCode);
@@ -199,7 +199,7 @@ Deno.test("サンプルコードの複雑度分析", async () => {
 });
 
 // 詳細な複雑度レポートを生成するテスト
-Deno.test("詳細な複雑度レポートの生成", async () => {
+Deno.test("詳細な複雑度レポートの生成", () => {
   // 各サンプルコードの詳細レポートを生成
   const simpleReport = generateDetailedComplexityReport(simpleCode);
   const mediumReport = generateDetailedComplexityReport(mediumCode);

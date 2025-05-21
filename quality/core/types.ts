@@ -5,7 +5,6 @@
  */
 
 // TypeScriptコンパイラを使用
-import ts from "npm:typescript";
 
 /**
  * コード複雑度の指標を表すインターフェース
